@@ -1,0 +1,2 @@
+EKS KMS encryption for secrets is only configured when the cluster is created.
+Read eks-cluster.tf in Terraform folder
