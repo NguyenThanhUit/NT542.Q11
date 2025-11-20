@@ -1,0 +1,54 @@
+# https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notify-svc
+  namespace: backend
+  labels:
+    app: notify-svc
+spec:
+  selector:
+    matchLabels:
+      app: notify-svc
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: notify-svc
+    spec:
+      containers:
+        - name: notify-svc
+          image: nguyenthanh/notify-svc
+          imagePullPolicy: Never
+          env: 
+            - name: RabbitMQ__Username
+              valueFrom:
+                secretKeyRef: 
+                  name: rabbit-secret
+                  key: username 
+            - name: RabbitMQ__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbit-secret
+                  key: password
+          envFrom:
+            - configMapRef:
+                name: notify-svc-config
+          ports:
+            - containerPort: 80
+              name: web
+---
+# https://kubernetes.io/docs/concepts/services-networking/service/
+apiVersion: v1
+kind: Service
+metadata:
+  name: notify-clusterip
+  namespace: backend
+spec:
+  selector:
+    app: notify-svc #tro dung container
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+---

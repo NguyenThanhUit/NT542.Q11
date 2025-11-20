@@ -1,0 +1,9 @@
+Apply cert: kubectl create secret tls nguyenth4nh-app-tls --cert=server.crt --key=server.key
+
+
+Append behind spec into ingress yaml
+    tls:
+     - hosts:
+        app.nguyenth4nh.xyz
+        id.nguyenth4nh.xyz
+        api.nguyenth4nh.xyz 

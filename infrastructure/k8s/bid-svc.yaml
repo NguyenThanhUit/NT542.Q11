@@ -1,0 +1,66 @@
+# https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bid-svc
+  namespace: backend
+  labels:
+    app: bid-svc
+spec:
+  selector:
+    matchLabels:
+      app: bid-svc
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: bid-svc
+    spec:
+      containers:
+        - name: bid-svc
+          image: nguyenthanh/bid-svc
+          imagePullPolicy: Never
+          env:
+            - name: ConnectionStrings__BidDbConnection
+              valueFrom:
+                secretKeyRef:
+                  name: bid-secret
+                  key: connString 
+            - name: RabbitMQ__Username
+              valueFrom:
+                secretKeyRef: 
+                  name: rabbit-secret
+                  key: username 
+            - name: RabbitMQ__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbit-secret
+                  key: password
+          envFrom:
+            - configMapRef:
+                name: bid-svc-config
+          ports:
+            - containerPort: 80
+              name: web
+
+---
+# https://kubernetes.io/docs/concepts/services-networking/service/
+apiVersion: v1
+kind: Service
+metadata:
+  name: bid-clusterip
+  namespace: backend
+spec:
+  selector:
+    app: bid-svc #tro dung container
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+      name: web
+---

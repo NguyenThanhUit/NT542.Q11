@@ -1,0 +1,49 @@
+# https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp-svc
+  namespace: frontend
+  labels:
+    app: webapp-svc
+spec:
+  selector:
+    matchLabels:
+      app: webapp-svc
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: webapp-svc
+    spec:
+      containers:
+        - name: webapp-svc
+          image: nguyenthanh/web-app
+          imagePullPolicy: Never
+          env:
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: webapp-secret
+                  key: authSecret
+          envFrom:
+            - configMapRef:
+                name: webapp-svc-config
+          ports:
+            - containerPort: 3000
+              name: web
+---
+# https://kubernetes.io/docs/concepts/services-networking/service/
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp-clusterip
+  namespace: frontend
+spec:
+  selector:
+    app: webapp-svc #tro dung container
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+---

@@ -1,0 +1,48 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using MongoDB.Driver;
+using MongoDB.Entities;
+using Polly;
+
+var builder = WebApplication.CreateBuilder(args);
+
+
+builder.Services.AddControllers();
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddScoped<IUserProfileContext, UserProfileContext>();
+
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = builder.Configuration["IdentityServiceUrl"];
+        options.RequireHttpsMetadata = false;
+        options.TokenValidationParameters.ValidateAudience = false;
+        options.TokenValidationParameters.NameClaimType = "username";
+    });
+
+var app = builder.Build();
+
+
+
+//Dung voi Docker
+// await DB.InitAsync("UserDb", MongoClientSettings.FromConnectionString(
+//     builder.Configuration.GetConnectionString("UserDbConnection")
+// ));
+
+//Dung voi k8s
+await Policy.Handle<TimeoutException>()
+    .WaitAndRetryAsync(5, retryAttempt => TimeSpan.FromSeconds(10))
+    .ExecuteAndCaptureAsync(async () =>
+    {
+        await DB.InitAsync("UserDb", MongoClientSettings.FromConnectionString(
+            builder.Configuration.GetConnectionString("UserDbConnection")
+        ));
+    });
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();

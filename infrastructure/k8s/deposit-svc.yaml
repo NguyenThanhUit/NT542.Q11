@@ -1,0 +1,66 @@
+# https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deposits-svc
+  namespace: backend
+  labels:
+    app: deposits-svc
+spec:
+  selector:
+    matchLabels:
+      app: deposits-svc
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: deposits-svc
+    spec:
+      containers:
+        - name: deposits-svc
+          image: nguyenthanh/deposits-svc
+          imagePullPolicy: Never
+          env: 
+            - name: ConnectionStrings__DepositDbConnection
+              valueFrom:
+                secretKeyRef:
+                  name: deposit-secret
+                  key: connString 
+            - name: RabbitMQ__Username
+              valueFrom:
+                secretKeyRef: 
+                  name: rabbit-secret
+                  key: username 
+            - name: RabbitMQ__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbit-secret
+                  key: password
+          envFrom:
+            - configMapRef:
+                name: deposits-svc-config
+          ports:
+            - containerPort: 80
+              name: web
+
+---
+# https://kubernetes.io/docs/concepts/services-networking/service/
+apiVersion: v1
+kind: Service
+metadata:
+  name: deposits-clusterip
+  namespace: backend
+spec:
+  selector:
+    app: deposits-svc #tro dung container
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+      name: web
+---

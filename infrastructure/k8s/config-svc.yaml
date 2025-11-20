@@ -1,0 +1,132 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-svc-config
+  namespace: backend
+data:
+  ASPNETCORE_URLS: http://+:80
+  RabbitMq__Host: rabbit-clusterip #trung voi cluster ip cua rabbit nham ket noi
+  IdentityServiceUrl: http://identity-clusterip
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: buyings-svc-config
+  namespace: backend
+data:
+  ASPNETCORE_URLS: http://+:80
+  RabbitMq__Host: rabbit-clusterip #trung voi cluster ip cua rabbit nham ket noi
+  IdentityServiceUrl: http://identity-clusterip
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deposits-svc-config
+  namespace: backend
+data:
+  ASPNETCORE_URLS: http://+:80
+  RabbitMq__Host: rabbit-clusterip #trung voi cluster ip cua rabbit nham ket noi
+  IdentityServiceUrl: http://identity-clusterip
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-svc-config
+  namespace: backend
+data:
+  ASPNETCORE_URLS: http://+:80
+  RabbitMq__Host: rabbit-clusterip #trung voi cluster ip cua rabbit nham ket noi
+  IdentityServiceUrl: http://identity-clusterip
+---
+# https://kubernetes.io/docs/concepts/configuration/configmap/
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: auction-svc-config
+  namespace: backend
+data:
+  ASPNETCORE_URLS: http://+:80; http://+:7777
+  RabbitMq__Host: rabbit-clusterip #trung voi cluster ip cua rabbit nham ket noi
+  IdentityServiceUrl: http://identity-clusterip
+  Kestrel__Endpoints__Grpc__Protocols: Http2
+  Kestrel__Endpoints__Grpc__Url: http://+:7777
+  Kestrel__Endpoints__WebApi__Protocols: http1
+  Kestrel__Endpoints__WebApi__Url: http://+:80
+---
+#Dung lenh rollout voi service do de cap nhat thay doi
+
+# https://kubernetes.io/docs/concepts/configuration/configmap/
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: search-svc-config
+  namespace: backend
+data:
+  ASPNETCORE_URLS: http://+:80
+  RabbitMq__Host: rabbit-clusterip #trung voi cluster ip cua rabbit nham ket noi
+  AuctionServiceUrl: http://auction-clusterip
+  OrderServiceUrl: http://order-clusterip
+---
+# https://kubernetes.io/docs/concepts/configuration/configmap/
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: bid-svc-config
+  namespace: backend
+data:
+  ASPNETCORE_URLS: http://+:80
+  RabbitMq__Host: rabbit-clusterip #trung voi cluster ip cua rabbit nham ket noi
+  IdentityServiceUrl: http://identity-clusterip
+  GrpcAuction: http://auction-clusterip:7777
+---
+# https://kubernetes.io/docs/concepts/configuration/configmap/
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: notify-svc-config
+  namespace: backend
+data:
+  ASPNETCORE_URLS: http://+:80
+  RabbitMq__Host: rabbit-clusterip #trung voi cluster ip cua rabbit nham ket noi
+---
+# https://kubernetes.io/docs/concepts/configuration/configmap/
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: gateway-svc-config
+  namespace: backend
+data:
+  ASPNETCORE_URLS: http://+:80
+  ASPNETCORE_ENVIRONMENT: "K8S"
+  ClientApp: https://app.nguyenth4nh.xyz
+  IdentityServiceUrl: http://identity-clusterip #Tai vi thieu moi truong cho k8s chi co moi truong cho Docker
+  #Nho build lai gateway-svc trong docker truoc khi build k8s
+---
+# https://kubernetes.io/docs/concepts/configuration/configmap/
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: identity-svc-config
+  namespace: backend
+data:
+  ASPNETCORE_URLS: http://+:80
+  IssuerUri: https://id.nguyenth4nh.xyz
+  ClientApp: https://app.nguyenth4nh.xyz
+---
+# https://kubernetes.io/docs/concepts/configuration/configmap/
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webapp-svc-config
+  namespace: frontend
+data:
+  ID_URL: https://id.nguyenth4nh.xyz
+  AUTH_URL: https://app.nguyenth4nh.xyz
+  NOTIFY_URL: http://api.nguyenth4nh.xyz/notifications
+  AUTH_URL_INTERNAL: http://webapp-clusterip.frontend.svc.cluster.local:3000
+  API_URL: http://gateway-clusterip.backend.svc.cluster.local/
+  ID_URL_INTERNAL: http://identity-clusterip.backend.svc.cluster.local
+
+
+
+

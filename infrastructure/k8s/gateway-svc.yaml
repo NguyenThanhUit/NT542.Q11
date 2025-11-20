@@ -1,0 +1,43 @@
+# https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-svc
+  namespace: backend
+  labels:
+    app: gateway-svc
+spec:
+  selector:
+    matchLabels:
+      app: gateway-svc
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: gateway-svc
+    spec:
+      containers:
+        - name: gateway-svc
+          image: nguyenthanh/gateway-svc
+          imagePullPolicy: Never
+          envFrom:
+            - configMapRef:
+                name: gateway-svc-config
+          ports:
+            - containerPort: 80
+              name: web
+---
+# https://kubernetes.io/docs/concepts/services-networking/service/
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-clusterip
+  namespace: backend
+spec:
+  selector:
+    app: gateway-svc #tro dung container
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+---

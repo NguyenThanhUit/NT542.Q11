@@ -1,0 +1,59 @@
+# https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-svc
+  namespace: backend
+  labels:
+    app: search-svc
+spec:
+  selector:
+    matchLabels:
+      app: search-svc
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: search-svc
+    spec:
+      containers:
+        - name: search-svc
+          image: nguyenthanh/search-svc
+          imagePullPolicy: Never
+          env:
+            - name: ConnectionStrings__MongoDbConnection
+              valueFrom:
+                secretKeyRef:
+                  name: search-secret
+                  key: connString
+            - name: RabbitMQ__Username
+              valueFrom:
+                secretKeyRef:
+                  name: rabbit-secret
+                  key: username
+            - name: RabbitMQ__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbit-secret
+                  key: password
+          envFrom:
+            - configMapRef:
+                name: search-svc-config
+          ports:
+            - containerPort: 80
+              name: web
+---
+# https://kubernetes.io/docs/concepts/services-networking/service/
+apiVersion: v1
+kind: Service
+metadata:
+  name: search-clusterip
+  namespace: backend
+spec:
+  selector:
+    app: search-svc #tro dung container
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+---

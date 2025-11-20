@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-svc
+  namespace: backend
+  labels:
+    app: identity-svc
+spec:
+  selector:
+    matchLabels:
+      app: identity-svc
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: identity-svc
+    spec:
+      containers:
+        - name: identity-svc
+          image: nguyenthanh/identity-svc
+          imagePullPolicy: Never
+          env:
+            - name: CLIENTID
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secret
+                  key: CLIENTID
+
+            - name: CLIENTSECRET
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secret
+                  key: CLIENTSECRET
+
+            - name: GMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secret
+                  key: GMAIL
+
+            - name: APPPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secret
+                  key: APPPASSWORD
+
+            - name: SENDER
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secret
+                  key: SENDER
+
+            - name: TWILIO_ACCOUNT_SID
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secret
+                  key: TWILIO_ACCOUNT_SID
+
+            - name: TWILIO_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secret
+                  key: TWILIO_AUTH_TOKEN
+
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secret
+                  key: connString
+
+            - name: EmailConfig__Email
+              valueFrom:
+                secretKeyRef:
+                  name: email-secret
+                  key: EmailConfig__Email
+
+            - name: EmailConfig__Username
+              valueFrom:
+                secretKeyRef: 
+                  name: email-secret
+                  key: EmailConfig__Username
+
+            - name: EmailConfig__Password
+              valueFrom:
+                secretKeyRef:
+                  name: email-secret
+                  key: EmailConfig__Password
+
+          envFrom:
+            - configMapRef:
+                name: identity-svc-config
+
+          ports:
+            - containerPort: 80
+              name: web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: identity-clusterip
+  namespace: backend
+spec:
+  selector:
+    app: identity-svc
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
