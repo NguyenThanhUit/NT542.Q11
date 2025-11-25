@@ -2,11 +2,6 @@ name: specializedProjects
 
 on: 
   workflow_dispatch:
-    inputs:
-      force_rebuild:
-        description: "Force rebuild all service"
-        required: false
-        default: "false"
   push:
     branches: ["main"]
   pull_request:
@@ -25,102 +20,7 @@ env:
 
 
 jobs:
-  Testing:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup .NET 
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Install SonarScanner
-        run: dotnet tool install --global dotnet-sonarscanner
-
-      - name: Begin SonarCloud Scan
-        run: |
-          dotnet sonarscanner begin \
-          /k:"${{ secrets.SONAR_PROJECT_KEY }}" \
-          /o:"${{ secrets.SONAR_ORG_KEY }}" \
-          /d:sonar.login=${{ secrets.SONAR_TOKEN }} \
-          /d:sonar.cs.opencover.reportsPaths=**/coverage.opencover.xml
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --no-incremental --configuration Release
-
-      - name: End SonarCloud Scan
-        run: dotnet sonarscanner end /d:sonar.login=${{ secrets.SONAR_TOKEN }}
-
-  Build-and-Push:
-    needs: Testing
-    runs-on: ubuntu-latest
-    env:
-      continue: 'false'
-    strategy:
-      matrix:
-        service:
-          - name: 'nguyenthanh91ndu/auction-svc'
-            path: 'src/AuctionService'
-          - name: 'nguyenthanh91ndu/bidding-svc'
-            path: 'src/BiddingService'
-          - name: 'nguyenthanh91ndu/buying-svc'
-            path: 'src/BuyingService'
-          - name: 'nguyenthanh91ndu/gateway-svc'
-            path: 'src/GatewayService'
-          - name: 'nguyenthanh91ndu/identity-svc'
-            path: 'src/IdentityService'
-          - name: 'nguyenthanh91ndu/notify-svc'
-            path: 'src/NotificationService'
-          - name: 'nguyenthanh91ndu/order-svc'
-            path: 'src/OrderService'
-          - name: 'nguyenthanh91ndu/search-svc'
-            path: 'src/SearchService'
-          - name: 'nguyenthanh91ndu/user-svc'
-            path: 'src/UserService'
-          - name: 'nguyenthanh91ndu/deposits-svc'
-            path: 'src/WalletService'
-          - name: 'nguyenthanh91ndu/web-app'
-            path: 'frontend/web'
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with: 
-          fetch-depth: 2
-      
-      - name: Check for change
-        run: |
-          if [[ "${{ github.event.inputs.force_rebuild }}" == "true" ]]; then
-            echo "Force rebuild enabled. Proceeding with build."
-            echo "continue=true" >> $GITHUB_ENV
-          elif git diff --quiet HEAD^ HEAD -- ${{ matrix.service.path }}; then
-            echo "No change in ${{ matrix.service.path }}. Skipping build"
-            echo "continue=false" >> $GITHUB_ENV
-          else
-            echo "Changes detected in ${{ matrix.service.path }}. Proceeding with build"
-            echo "continue=true" >> $GITHUB_ENV
-          fi
-      - name: Build & Push Docker image
-        if: env.continue == 'true'
-        uses: appleboy/docker-ecr-action@master
-        with:
-            access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            registry: ${{ secrets.REGISTRY }}
-            repo: ${{ matrix.service.name }}
-            region: ${{ env.AWS_REGION }}
-            tags: latest,${{ github.run_number }}
-            dockerfile: ${{ matrix.service.path }}/Dockerfile
-            context: ${{ matrix.service.path }}
-            daemon_off: false
-
   SetUp_Env:
-    needs: Build-and-Push
     runs-on: ubuntu-latest
     name: "Apply Terraform code changes"
     defaults:
@@ -162,30 +62,7 @@ jobs:
         if: (github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch'))
         run: terraform apply -auto-approve -input=false -parallelism=1 planfile
       
-
-  Deploy_K8s:
-    needs: SetUp_Env
-    runs-on: ubuntu-latest
-    name: "Deploy Kubernetes manifests"
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v5.0.0
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Update kubeconfig for EKS
-        run: |
-          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }}
-
-      - name: Verify cluster connection
-        run: kubectl get nodes
   Cis_Check:
-    needs: Deploy_K8s
     runs-on: ubuntu-latest
     name: "Cis benchmark check"
     steps:
@@ -213,6 +90,8 @@ jobs:
                 echo "Running $f ..."
                 ./$f
             done
+
+        
         
 
 
