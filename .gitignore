@@ -1,4 +1,0 @@
-node_modules/
-obj/
-*.env
-infrastructure/secret/devSecret.yaml

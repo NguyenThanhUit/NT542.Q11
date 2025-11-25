@@ -184,11 +184,36 @@ jobs:
 
       - name: Verify cluster connection
         run: kubectl get nodes
+  Cis_Check:
+    needs: Deploy_K8s
+    runs-on: ubuntu-latest
+    name: "Cis benchmark check"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Deploy Kubernetes manifests
-        id: deploy
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5.0.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+    
+      - name: 2.1 Logging
         run: |
-          echo "Applying all Kubernetes YAML files in infras/"
-          kubectl apply -f infras/ --recursive
+             cd cischeck/2.1_Logging
+             chmod +x enableAudit.sh
+             ./enbleAudit.sh ${{env.EKS_CLUSTER}} ${{env.AWS_REGION}}
+
+      - name: 3.1 Worker Node Configuration
+        run: |
+            cd cischeck/3.1_Worker_Node_Configuration
+            chmod +x *.sh
+            for f in *.sh; do
+                echo "Running $f ..."
+                ./$f
+            done
+        
+
 
      
