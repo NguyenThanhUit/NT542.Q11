@@ -2,22 +2,27 @@ name: specializedProjects
 
 on: 
   workflow_dispatch:
+    inputs:
+      ALLOWED_CIDR:
+        description: Your Public IP
+        required: false
+        default: ''
+        
   push:
     branches: ["main"]
   pull_request:
     branches:
       - main 
     
+
 env:
   AWS_REGION: ap-southeast-1
   AWS_ACCESS_KEY_ID: ${{secrets.AWS_ACCESS_KEY_ID}}
   AWS_SECRET_ACCESS_KEY: ${{secrets.AWS_SECRET_ACCESS_KEY}}
-  #Dung cho bucket luu tfstate
   BUCKET_TF_STATE: ${{secrets.BUCKET_TF_STATE}}
   EKS_CLUSTER: specialProject
   ECR_REPOSITORY: web-app
   CONTAINER_NAME: devopsproject
-
 
 jobs:
   SetUp_Env:
@@ -39,7 +44,6 @@ jobs:
       - name: Terraform init 
         id: init 
         run: terraform init -backend-config="bucket=$BUCKET_TF_STATE"
-        #run: terraform init -backend=false
 
       - name: Terraform format
         id: fmt 
@@ -62,9 +66,10 @@ jobs:
         if: (github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch'))
         run: terraform apply -auto-approve -input=false -parallelism=1 planfile
       
+
   Cis_Check:
     runs-on: ubuntu-latest
-    name: "Cis benchmark check"
+    name: "CIS Benchmark Check"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -75,24 +80,60 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-    
+      
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq unzip curl
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install --bin-dir /usr/local/bin --update
+
+      # CIS 2.1 Logging
       - name: 2.1 Logging
         run: |
              cd cischeck/2.1_Logging
-             chmod +x enableAudit.sh
-             ./enbleAudit.sh ${{env.EKS_CLUSTER}} ${{env.AWS_REGION}}
+             chmod +x cis_2_1_1.sh
+             ./cis_2_1_1.sh ${{env.EKS_CLUSTER}} ${{env.AWS_REGION}}
 
-      - name: 3.1 Worker Node Configuration
+      # CIS 5.1 Image Registry
+      - name: 5.1 Image Registry
         run: |
-            cd cischeck/3.1_Worker_Node_Configuration
-            chmod +x *.sh
-            for f in *.sh; do
-                echo "Running $f ..."
-                ./$f
-            done
+            cd cischeck/5.1_Image_Registry
+            chmod +x cis_5_1_1.sh
+            ./cis_5_1_1.sh ${{env.ECR_REPOSITORY}} ${{env.AWS_REGION}}
 
-        
-        
+      # CIS 5.2 IAM
+      - name: 5.2 IAM
+        run: |
+            cd cischeck/5.2_IAM
+            chmod +x cis_5_2_1.sh
+            ./cis_5_2_1.sh
 
+      # CIS 5.4 Cluster Networking
+      - name: 5.4.1 Restrict Control Plane Endpoint
+        run: |
+          cd cischeck/5.4_CLUSTER_NETWORKING
+          chmod +x cis_5_4_1.sh
+          ./cis_5_4_1.sh ${{ env.EKS_CLUSTER }} ${{ env.AWS_REGION }} ${{ github.event.inputs.ALLOWED_CIDR }}
 
-     
+      - name: 5.4.2 Private Endpoint Enabled, Public Disabled
+        run: |
+          cd cischeck/5.4_CLUSTER_NETWORKING
+          chmod +x cis_5_4_2.sh
+          ./cis_5_4_2.sh ${{ env.EKS_CLUSTER }} ${{ env.AWS_REGION }} ${{ github.event.inputs.ALLOWED_CIDR }}
+
+      - name: 5.4.3 Ensure Private Nodes
+        run: |
+          cd cischeck/5.4_CLUSTER_NETWORKING
+          chmod +x cis_5_4_3.sh
+          ./cis_5_4_3.sh ${{ env.EKS_CLUSTER }} ${{ env.AWS_REGION }}
+
+      - name: 3.1 Kubelet Ownership
+        run: |
+            cd cischeck/3.1_Kubelet
+            kubectl apply -f kubelet-config-daemonset.yaml
+            echo "Waiting 30s for DaemonSet pods to start..."
+            sleep 30
+            kubectl get pods -n kube-system -l name=kubelet-config-check
+

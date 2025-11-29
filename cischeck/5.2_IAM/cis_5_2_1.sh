@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "=== CIS 5.2.1 – Prefer using dedicated EKS Service Accounts ==="
+echo "=== CIS 5.2.1 - Prefer using dedicated EKS Service Accounts ==="
 echo
 
 NAMESPACES=$(kubectl get ns -o jsonpath='{.items[*].metadata.name}')

@@ -1,16 +1,13 @@
 #!/bin/bash
 
-
-
-# Cấu hình
 AWS_REGION=$1
-CLUSTER_NAME=$2  # đổi tên cluster của bạn
+CLUSTER_NAME=$2  
 MY_IP=$3
 
-echo "=== CIS 5.4.x - Control Plane Endpoint Audit ==="
+echo "=== CIS 5.4.2 - Control Plane Endpoint Audit ==="
 echo
 
-# 1. Lấy thông tin cluster
+
 echo "[INFO] Fetching cluster endpoint configuration..."
 ENDPOINT_CONFIG=$(aws eks describe-cluster \
   --name "$CLUSTER_NAME" \
@@ -41,7 +38,6 @@ else
     echo "[WARN] Public endpoint is NOT disabled"
     echo "[ACTION] Restricting public access to a single IP (your IP)..."
     
-    # Lấy IP hiện tại của bạn
     aws eks update-cluster-config \
       --region "$AWS_REGION" \
       --name "$CLUSTER_NAME" \
