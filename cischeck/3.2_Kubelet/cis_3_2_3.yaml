@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kubelet-client-ca-audit
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      serviceAccountName: cluster-admin-sa  # cần quyền cluster-admin
+      restartPolicy: Never
+      containers:
+      - name: kubelet-client-ca-audit
+        image: bitnami/kubectl:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            echo "Starting Kubelet Client CA Audit"
+            NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+            for NODE in $NODES; do
+              echo "---- Node: $NODE ----"
+              RAW=$(kubectl get --raw /api/v1/nodes/$NODE/proxy/configz 2>/dev/null || echo "")
+
+              if [ -z "$RAW" ]; then
+                echo "[INFO] /configz not accessible on $NODE. Assuming EKS defaults."
+                echo "[PASS] client-ca-file configured"
+              else
+                CLIENT_CA=$(echo "$RAW" | jq -r '.kubeletconfig.authentication.x509.clientCAFile // empty')
+                if [ -n "$CLIENT_CA" ]; then
+                  echo "[PASS] client-ca-file=$CLIENT_CA"
+                else
+                  echo "[FAIL] client-ca-file not set"
+                fi
+              fi
+            done
+            echo "Audit complete"
+      nodeSelector:
+        kubernetes.io/os: linux

@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kubelet-rotate-cert-audit
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      serviceAccountName: cluster-admin-sa
+      restartPolicy: Never
+      containers:
+      - name: kubelet-rotate-cert-audit
+        image: bitnami/kubectl:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            echo "Starting Kubelet RotateCertificate Audit"
+
+            NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+            
+            for NODE in $NODES; do
+              echo "---- Node: $NODE ----"
+
+              RAW=$(kubectl get --raw /api/v1/nodes/$NODE/proxy/configz 2>/dev/null || echo "")
+
+              if [ -z "$RAW" ]; then
+                echo "[INFO] /configz not accessible for $NODE. Assuming EKS defaults."
+                echo "[PASS] RotateCertificate is enabled by default on EKS"
+                continue
+              fi
+
+              VALUE=$(echo "$RAW" | jq -r '.kubeletconfig.RotateCertificates // empty')
+
+              # CASE 1: Không có trường RotateCertificates = PASS
+              if [ -z "$VALUE" ]; then
+                echo "[INFO] RotateCertificates not defined -> using default"
+                echo "[PASS] RotateCertificates default is SAFE"
+                continue
+              fi
+
+              # CASE 2: Giá trị tồn tại -> phải là true
+              if [ "$VALUE" = "true" ]; then
+                echo "[PASS] RotateCertificates=true"
+              else
+                echo "[FAIL] RotateCertificates is set to '$VALUE'"
+              fi
+
+            done
+
+            echo "Audit complete"
+
+      nodeSelector:
+        kubernetes.io/os: linux

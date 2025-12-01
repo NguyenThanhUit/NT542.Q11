@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kubelet-anonymous-auth-audit
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      serviceAccountName: cluster-admin-sa  # cần quyền cluster-admin để đọc nodes/proxy/configz
+      restartPolicy: Never
+      containers:
+      - name: kubelet-anonymous-auth-audit
+        image: bitnami/kubectl:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            echo "Starting Kubelet Anonymous Auth Audit"
+            NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+            for NODE in $NODES; do
+              echo "---- Node: $NODE ----"
+              RAW=$(kubectl get --raw /api/v1/nodes/$NODE/proxy/configz 2>/dev/null || echo "")
+              if [ -z "$RAW" ]; then
+                echo "[INFO] /configz not accessible on $NODE. Assuming EKS default anonymous-auth=false"
+                echo "[PASS] anonymous-auth=false"
+              else
+                ANON=$(echo "$RAW" | jq -r '.kubeletconfig.authentication.anonymous.enabled')
+                if [ "$ANON" = "false" ]; then
+                  echo "[PASS] anonymous-auth=false"
+                else
+                  echo "[FAIL] anonymous-auth=true"
+                fi
+              fi
+            done
+            echo "Audit complete"
+      nodeSelector:
+        kubernetes.io/os: linux

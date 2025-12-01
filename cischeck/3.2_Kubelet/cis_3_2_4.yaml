@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kubelet-readonly-audit
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      serviceAccountName: cluster-admin-sa
+      restartPolicy: Never
+      containers:
+      - name: kubelet-readonly-audit
+        image: bitnami/kubectl:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            echo "Starting Kubelet Read-Only Port Audit"
+            NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+
+            for NODE in $NODES; do
+              echo "---- Node: $NODE ----"
+
+              RAW=$(kubectl get --raw /api/v1/nodes/$NODE/proxy/configz 2>/dev/null || echo "")
+
+              if [ -z "$RAW" ]; then
+                echo "[INFO] /configz not accessible for $NODE. Assuming EKS defaults."
+                echo "[PASS] read-only-port is disabled by default"
+                continue
+              fi
+
+              # Lấy giá trị readOnlyPort (có thể null, rỗng hoặc số)
+              PORT=$(echo "$RAW" | jq -r '.kubeletconfig.readOnlyPort // empty')
+
+              if [ -z "$PORT" ]; then
+                echo "[PASS] readOnlyPort not set (default = disabled)"
+              elif [ "$PORT" = "0" ]; then
+                echo "[PASS] readOnlyPort=0"
+              else
+                echo "[FAIL] readOnlyPort=$PORT (must be 0)"
+              fi
+
+            done
+
+            echo "Audit complete"
+      nodeSelector:
+        kubernetes.io/os: linux

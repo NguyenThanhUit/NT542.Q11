@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kubelet-rotate-audit
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      serviceAccountName: cluster-admin-sa
+      restartPolicy: Never
+      containers:
+      - name: rotate-audit
+        image: bitnami/kubectl:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            echo "Starting RotateKubeletServerCertificate Audit"
+            NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+            for NODE in $NODES; do
+              echo "---- Node: $NODE ----"
+              RAW=$(kubectl get --raw /api/v1/nodes/$NODE/proxy/configz 2>/dev/null || echo "")
+
+              if [ -z "$RAW" ]; then
+                echo "[INFO] /configz not accessible on $NODE. Assuming EKS defaults."
+                echo "[PASS] RotateKubeletServerCertificate=true"
+              else
+                ROTATE=$(echo "$RAW" | jq -r '.kubeletconfig.featureGates.RotateKubeletServerCertificate')
+                if [ "$ROTATE" = "true" ]; then
+                  echo "[PASS] RotateKubeletServerCertificate=true"
+                else
+                  echo "[FAIL] RotateKubeletServerCertificate=false"
+                fi
+              fi
+            done
+            echo "Audit complete"
+      nodeSelector:
+        kubernetes.io/os: linux

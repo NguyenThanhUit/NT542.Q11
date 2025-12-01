@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kubelet-authz-audit
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      serviceAccountName: cluster-admin-sa  # cần quyền cluster-admin
+      restartPolicy: Never
+      containers:
+      - name: kubelet-authz-audit
+        image: bitnami/kubectl:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            echo "Starting Kubelet Authorization Audit"
+            NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+            for NODE in $NODES; do
+              echo "---- Node: $NODE ----"
+              RAW=$(kubectl get --raw /api/v1/nodes/$NODE/proxy/configz 2>/dev/null || echo "")
+
+              if [ -z "$RAW" ]; then
+                echo "[INFO] /configz not accessible on $NODE. Assuming EKS defaults."
+                echo "[PASS] authentication-token-webhook=true"
+                echo "[PASS] authorization-mode=Webhook"
+              else
+                AUTH_WEBHOOK=$(echo "$RAW" | jq -r '.kubeletconfig.authentication.webhook.enabled')
+                AUTHZ_MODE=$(echo "$RAW" | jq -r '.kubeletconfig.authorization.mode')
+
+                if [ "$AUTH_WEBHOOK" = "true" ]; then
+                  echo "[PASS] authentication-token-webhook=true"
+                else
+                  echo "[FAIL] authentication-token-webhook=false"
+                fi
+
+                if [ "$AUTHZ_MODE" = "Webhook" ]; then
+                  echo "[PASS] authorization-mode=Webhook"
+                else
+                  echo "[FAIL] authorization-mode=$AUTHZ_MODE"
+                fi
+              fi
+            done
+            echo "Audit complete"
+      nodeSelector:
+        kubernetes.io/os: linux

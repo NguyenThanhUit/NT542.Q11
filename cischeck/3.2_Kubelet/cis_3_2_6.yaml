@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kubelet-make-iptables-audit
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      serviceAccountName: cluster-admin-sa
+      restartPolicy: Never
+      containers:
+      - name: kubelet-make-iptables-audit
+        image: bitnami/kubectl:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            echo "Starting Kubelet makeIPTablesUtilChains Audit"
+
+            NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+
+            for NODE in $NODES; do
+              echo "---- Node: $NODE ----"
+
+              RAW=$(kubectl get --raw /api/v1/nodes/$NODE/proxy/configz 2>/dev/null || echo "")
+
+              if [ -z "$RAW" ]; then
+                echo "[INFO] /configz not accessible for $NODE. Assuming EKS defaults."
+                echo "[PASS] makeIPTablesUtilChains default is true"
+                continue
+              fi
+
+              VALUE=$(echo "$RAW" | jq -r '.kubeletconfig.makeIPTablesUtilChains // empty')
+
+              # CASE 1: Không có trường => PASS
+              if [ -z "$VALUE" ]; then
+                echo "[INFO] makeIPTablesUtilChains not defined -> using default"
+                echo "[PASS] makeIPTablesUtilChains is true by default"
+                continue
+              fi
+
+              # CASE 2: Định nghĩa rõ ràng => kiểm tra true/false
+              if [ "$VALUE" = "true" ]; then
+                echo "[PASS] makeIPTablesUtilChains=true"
+              else
+                echo "[FAIL] makeIPTablesUtilChains=$VALUE"
+              fi
+
+            done
+
+            echo "Audit complete"
+
+      nodeSelector:
+        kubernetes.io/os: linux

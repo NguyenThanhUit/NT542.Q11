@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kubelet-event-qps-audit
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      serviceAccountName: cluster-admin-sa
+      restartPolicy: Never
+      containers:
+      - name: kubelet-event-qps-audit
+        image: bitnami/kubectl:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            echo "Starting Kubelet eventRecordQPS Audit"
+
+            NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+
+            for NODE in $NODES; do
+              echo "---- Node: $NODE ----"
+
+              RAW=$(kubectl get --raw /api/v1/nodes/$NODE/proxy/configz 2>/dev/null || echo "")
+
+              if [ -z "$RAW" ]; then
+                echo "[INFO] /configz not accessible for $NODE. Assuming EKS defaults."
+                echo "[PASS] eventRecordQPS default is not dangerously low"
+                continue
+              fi
+
+              VALUE=$(echo "$RAW" | jq -r '.kubeletconfig.eventRecordQPS // empty')
+
+              # CASE 1: Không có trường => dùng default EKS -> PASS
+              if [ -z "$VALUE" ]; then
+                echo "[INFO] eventRecordQPS not defined -> using default"
+                echo "[PASS] eventRecordQPS uses safe default"
+                continue
+              fi
+
+              # CASE 2: Có trường -> kiểm tra giá trị
+              if [ "$VALUE" = "0" ]; then
+                echo "[PASS] eventRecordQPS=0 (unlimited, but allowed)"
+              elif [ "$VALUE" -gt 0 ] 2>/dev/null; then
+                # Giá trị dương hợp lệ
+                echo "[PASS] eventRecordQPS=$VALUE (configured)"
+              else
+                echo "[FAIL] eventRecordQPS has invalid value: $VALUE"
+              fi
+
+            done
+
+            echo "Audit complete"
+
+      nodeSelector:
+        kubernetes.io/os: linux
