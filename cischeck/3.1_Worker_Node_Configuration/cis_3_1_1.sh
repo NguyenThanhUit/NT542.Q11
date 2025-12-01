@@ -5,10 +5,6 @@ CONFIG_PATH="/var/lib/kubelet/kubeconfig"
 HOST_PATH="/host${CONFIG_PATH}"
 
 echo "=== CIS 3.1.1 -  Ensure that the kubeconfig file permissions are set to 644 or more restrictive ==="
-kubectl apply -f file-check-pod.yaml
-
-echo ">> Waiting for pod to be Ready..."
-kubectl wait --for=condition=Ready pod/file-check --timeout=60s
 
 echo ">> Checking permissions of kubeconfig file: $CONFIG_PATH"
 
