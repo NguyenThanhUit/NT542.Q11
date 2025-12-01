@@ -16,7 +16,7 @@ on:
     
 
 env:
-  AWS_REGION: ap-southeast-1
+  AWS_REGION: us-east-1
   AWS_ACCESS_KEY_ID: ${{secrets.AWS_ACCESS_KEY_ID}}
   AWS_SECRET_ACCESS_KEY: ${{secrets.AWS_SECRET_ACCESS_KEY}}
   BUCKET_TF_STATE: ${{secrets.BUCKET_TF_STATE}}
@@ -129,11 +129,47 @@ jobs:
           chmod +x cis_5_4_3.sh
           ./cis_5_4_3.sh ${{ env.EKS_CLUSTER }} ${{ env.AWS_REGION }}
 
-      - name: 3.1 Kubelet Ownership
+  Node_Cis_Check:
+    runs-on: ubuntu-latest
+    name: "CIS Worker Node Check"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5.0.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig for EKS
         run: |
-            cd cischeck/3.1_Kubelet
-            kubectl apply -f kubelet-config-daemonset.yaml
-            echo "Waiting 30s for DaemonSet pods to start..."
-            sleep 30
-            kubectl get pods -n kube-system -l name=kubelet-config-check
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }}
+
+      - name: Verify cluster connection
+        run: kubectl get nodes
+
+      - name: Apply privileged pod
+        run: |
+          kubectl apply -f cischeck/file-pod-check.yaml
+
+      - name: Wait for pod ready
+        run: |
+          kubectl wait --for=condition=Ready pod/cis-node-check --timeout=60s
+
+      - name: Copy CIS scripts to pod
+        run: |
+          kubectl cp cischeck/3.1_kubelet/ cis-node-check:/tmp/cischeck/
+
+      - name: Run Kubelet CIS scripts inside pod
+        run: |
+          kubectl exec cis-node-check -- sh -c "chmod +x /tmp/cischeck/*.sh && \
+          /tmp/cischeck/cis_3_1_3_anonymous_auth.sh /host /host/etc/kubernetes/kubelet/config.json && \
+          /tmp/cischeck/cis_3_2_2_authorization_mode.sh /host /host/etc/kubernetes/kubelet/config.json"
+
+      - name: Cleanup privileged pod
+        run: |
+          kubectl delete -f cischeck/file-pod-check.yaml
+
 

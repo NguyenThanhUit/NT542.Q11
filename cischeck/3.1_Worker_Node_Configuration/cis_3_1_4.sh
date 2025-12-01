@@ -16,5 +16,5 @@ if [ "$OUTPUT" != "root:root" ]; then
 fi
 
 echo "[PASS]: kubelet config ownership is correct (root:root)"
-kubectl delete pod file-check
+
 exit 0

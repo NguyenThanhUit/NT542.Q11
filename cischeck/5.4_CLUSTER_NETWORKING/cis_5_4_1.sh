@@ -58,9 +58,9 @@ else
     echo "[ACTION] Remediating cluster endpoint access..."
     
     aws eks update-cluster-config \
-        --region "$REGION" \
-        --name "$CLUSTER_NAME" \
-        --resources-vpc-config endpointPrivateAccess=true,endpointPublicAccess=true,publicAccessCidrs="$ALLOWED_CIDRS"
+    --region "$REGION" \
+    --name "$CLUSTER_NAME" \
+    --resources-vpc-config '{"endpointPrivateAccess":true,"endpointPublicAccess":true,"publicAccessCidrs":["'"$ALLOWED_CIDR"'"]}'
     
     echo "[DONE] Cluster endpoint configuration updated."
 fi
