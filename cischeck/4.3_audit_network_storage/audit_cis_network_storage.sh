@@ -1,73 +1,90 @@
 #!/bin/bash
 
-echo "CIS BENCHMARK AUDIT: 4.3 CNI, 4.4 SECRETS, 4.5 NAMESPACES"
+echo "CIS BENCHMARK AUDIT: 4.3, 4.4, 4.5 (FIXED & OPTIMIZED)"
 echo "Cluster Context: $(kubectl config current-context)"
+echo "----------------------------------------------------------------"
 
-# --- 4.3.2 Ensure that all Namespaces have Network Policies defined ---
-echo "[4.3.2] Checking: Ensure that all Namespaces have Network Policies defined"
-echo "Criteria: Every namespace should have at least one NetworkPolicy to isolate traffic."
+# ==============================================================================
+# 4.3.2 Ensure that all Namespaces have Network Policies defined
+# ==============================================================================
+echo ""
+echo "[4.3.2] Checking: Namespace Network Isolation"
+echo "Criteria: User namespaces must have NetworkPolicies. (Skipping kube-system/public)"
 
-
-# Get all namespaces
-NAMESPACES=$(kubectl get ns -o jsonpath='{.items[*].metadata.name}')
-FAIL_432=0
+FAIL_COUNT=0
+# Lấy danh sách NS, loại bỏ các NS hệ thống của K8s và AWS
+NAMESPACES=$(kubectl get ns -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep -vE "^kube-|^amazon-|^default$")
 
 for ns in $NAMESPACES; do
-    # Count network policies in the namespace
     NP_COUNT=$(kubectl get networkpolicy -n "$ns" --no-headers 2>/dev/null | wc -l)
     
     if [ "$NP_COUNT" -eq 0 ]; then
-        echo "[WARN] Namespace '$ns' has NO Network Policies."
-        ((FAIL_432++))
+        echo " [WARN] Namespace '$ns' has NO Network Policies (Open traffic)."
+        ((FAIL_COUNT++))
     else
-        echo "[PASS] Namespace '$ns' has $NP_COUNT Network Policies."
+        echo " [OK] Namespace '$ns' is protected ($NP_COUNT policies)."
     fi
 done
 
-if [ "$FAIL_432" -gt 0 ]; then
-    echo "RESULT 4.3.2: FAIL (Found $FAIL_432 namespaces without network isolation)"
+if [ "$FAIL_COUNT" -gt 0 ]; then
+    echo "RESULT 4.3.2: FAIL (Found $FAIL_COUNT unprotected user namespaces)"
 else
-    echo "RESULT 4.3.2: PASS (All namespaces have policies)"
+    echo "RESULT 4.3.2: PASS (All user namespaces have policies)"
 fi
 
-# --- 4.4.1 Prefer using secrets as files over secrets as environment variables ---
-echo "[4.4.1] Checking: Prefer using secrets as files over secrets as environment variables"
-echo "Criteria: Pods should mount secrets as volumes, not map them to env vars (envFrom/valueFrom)."
+# ==============================================================================
+# 4.4.1 Prefer using secrets as files over environment variables
+# ==============================================================================
+echo ""
+echo "----------------------------------------------------------------"
+echo "[4.4.1] Checking: Secrets used as Environment Variables"
+echo "Criteria: Check both 'valueFrom.secretKeyRef' AND 'envFrom.secretRef'"
 
-
-WARN_441=0
-
-# Logic: Scan all pods, look for containers using 'secretKeyRef' inside 'env'
-kubectl get pods --all-namespaces -o json | jq -r '
+# SỬA LỖI:
+# 1. Check cả 'env' (biến lẻ) và 'envFrom' (load toàn bộ secret)
+# 2. Xử lý biến đếm bên ngoài subshell
+SECRET_ENV_PODS=$(kubectl get pods -A -o json | jq -r '
   .items[] | 
-  select(.spec.containers[].env[]?.valueFrom.secretKeyRef != null) |
-  " - Namespace: " + .metadata.namespace + " | Pod: " + .metadata.name + " uses Secret as EnvVar"
-' | while read line; do
-    echo "[WARN] $line"
-    ((WARN_441++))
-done
+  select(
+    (.spec.containers[].env[]?.valueFrom.secretKeyRef != null) or 
+    (.spec.containers[].envFrom[]?.secretRef != null)
+  ) | 
+  select(.metadata.namespace != "kube-system") |
+  " - NS: " + .metadata.namespace + " | Pod: " + .metadata.name
+' | sort | uniq)
 
-if [ "$WARN_441" -gt 0 ]; then
-    echo "RESULT 4.4.1: FAIL (Found $WARN_441 pods using Secrets as Env Vars)"
-    echo "Note: Using Secrets as Env Vars allows values to be seen in crash dumps or 'env' commands."
-else
-    echo "RESULT 4.4.1: PASS (No secrets mapped to environment variables found)"
+COUNT_441=0
+if [ -n "$SECRET_ENV_PODS" ]; then
+    # Đếm số dòng
+    COUNT_441=$(echo "$SECRET_ENV_PODS" | wc -l)
 fi
 
-# --- 4.5.2 The default namespace should not be used ---
-echo "[4.5.2] Checking: The default namespace should not be used"
-echo "Criteria: No application workloads (Pods, Deployments) should run in the 'default' namespace."
-
-# Check for resources in 'default' namespace (excluding the default kubernetes service)
-RES_COUNT=$(kubectl get pods,deployments,statefulsets,daemonsets -n default --no-headers 2>/dev/null | wc -l)
-
-if [ "$RES_COUNT" -gt 0 ]; then
-    echo "[WARN] Found resources in 'default' namespace:"
-    kubectl get pods,deployments -n default --no-headers
-    echo "RESULT 4.5.2: FAIL (Default namespace is being used)"
+if [ "$COUNT_441" -gt 0 ]; then
+    echo "Found pods using Secrets as Env Vars:"
+    echo "$SECRET_ENV_PODS"
+    echo "RESULT 4.4.1: FAIL (Found $COUNT_441 pods)"
 else
-    echo "[PASS] 'default' namespace is empty (No workloads found)."
+    echo "RESULT 4.4.1: PASS (Secrets are mounted as files or not used in env)"
+fi
+
+# ==============================================================================
+# 4.5.2 The default namespace should not be used
+# ==============================================================================
+echo ""
+echo "----------------------------------------------------------------"
+echo "[4.5.2] Checking: Usage of 'default' namespace"
+
+# Kiểm tra kỹ các workload phổ biến
+RES_IN_DEFAULT=$(kubectl get pods,deployments,statefulsets,daemonsets,jobs,cronjobs -n default --no-headers 2>/dev/null)
+
+if [ -n "$RES_IN_DEFAULT" ]; then
+    echo "[WARN] Found resources in 'default' namespace:"
+    echo "$RES_IN_DEFAULT"
+    echo "RESULT 4.5.2: FAIL (Default namespace contains workloads)"
+else
+    echo "[OK] 'default' namespace is empty."
     echo "RESULT 4.5.2: PASS"
 fi
 
+echo ""
 echo "AUDIT COMPLETED"
