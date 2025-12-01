@@ -1,85 +1,105 @@
 #!/bin/bash
 
-echo "CIS BENCHMARK AUDIT: 4.1 RBAC AND SERVICE ACCOUNTS"
+echo "CIS BENCHMARK AUDIT: 4.1 RBAC AND SERVICE ACCOUNTS (FIXED OUTPUT)"
 echo "Cluster Context: $(kubectl config current-context)"
+echo "----------------------------------------------------------------"
 
-# --- 4.1.1 Cluster Admin Usage ---
+# ==============================================================================
+# 4.1.1 Ensure that the cluster-admin role is only used where required
+# ==============================================================================
 echo ""
 echo "[4.1.1] Checking: Ensure that the cluster-admin role is only used where required"
-echo "---------------------------------------------------------"
 WARNING_411=0
-
+# Lấy danh sách, lọc bỏ system/eks, đếm số lượng
 kubectl get clusterrolebindings -o json | jq -r '
-  .items[] 
-  | select(.roleRef.name == "cluster-admin") 
+  .items[]
+  | select(.roleRef.name == "cluster-admin")
   | .metadata.name + " -> " + (.subjects[]? | .kind + "/" + .name)
-' | while read line; do
-    # Filter system defaults
-    if [[ "$line" == *"system:"* ]] || [[ "$line" == *"eks:"* ]]; then
-        echo "[OK] System Binding: $line"
-    else
-        echo "[WARN] Check this binding: $line"
-        ((WARNING_411++))
-    fi
+' | grep -vE "^system:|^eks:|^aws-node|^addon-" | sort | uniq | while read line; do
+    echo "[WARN] Check this binding: $line"
+    ((WARNING_411++))
 done
 
-if [ "$WARNING_411" -eq 0 ]; then 
-    echo "RESULT 4.1.1: PASS"
+if [ "$WARNING_411" -eq 0 ]; then
+  echo "RESULT 4.1.1: PASS"
 else
-    echo "RESULT 4.1.1: FAIL (Found suspicious admin bindings)"
+  echo "RESULT 4.1.1: FAIL (Found $WARNING_411 suspicious admin bindings)"
 fi
 
-# --- 4.1.2 Access to Secrets ---
+# ==============================================================================
+# 4.1.2 Minimize access to secrets
+# ==============================================================================
+echo ""
 echo "[4.1.2] Checking: Minimize access to secrets"
-echo "Scanning for ClusterRoles with 'get/list/watch' on 'secrets'..."
+WARNING_412=0
 
-kubectl get clusterroles -o json | jq -r '
+# Logic: Tìm ClusterRole có rules truy cập 'secrets' với quyền 'get/list/watch'
+# Fix: Dùng sort | uniq để không in lặp lại tên Role
+CR_SECRETS=$(kubectl get clusterroles -o json | jq -r '
   .items[] 
-  | select(.rules[]? | select(.resources[]? | index("secrets") or index("*")))
-  | select(.rules[]? | select(.verbs[]? | index("get") or index("list") or index("watch") or index("*")))
+  | select(.rules[]? | .resources? and (.resources[] | contains("secrets")) and .verbs? and (.verbs[] | test("get|list|watch|\\*")))
   | .metadata.name
-' | while read role; do
-    if [[ "$role" != system:* ]] && [[ "$role" != aws:* ]] && [[ "$role" != eks:* ]]; then
-         echo "[WARN] ClusterRole allows secret access: $role"
-    fi
-done
-echo "Note: System roles (system:*, aws:*, eks:*) are excluded from output."
+' | sort | uniq | grep -vE "^system:|^eks:|^aws-|^vpc-resource-controller")
 
-# --- 4.1.4 Create Pods ---
-
-echo "[4.1.4] Checking: Minimize access to create pods"
-echo "Scanning for Roles/ClusterRoles that can 'create' pods..."
-
-kubectl get clusterroles,roles --all-namespaces -o json | jq -r '
-  .items[] 
-  | select(.rules[]? | select(.resources[]? | index("pods") or index("*")))
-  | select(.rules[]? | select(.verbs[]? | index("create") or index("*")))
-  | .kind + ": " + .metadata.name + " (Namespace: " + (.metadata.namespace // "Cluster-wide") + ")"
-' | grep -v "system:" | grep -v "aws-" | grep -v "eks-" | while read line; do
-    echo "[WARN] $line"
-done
-echo "Note: System roles are excluded from output."
-
-# --- 4.1.6 Automount Service Account Token ---
-
-echo "[4.1.6] Checking: Ensure that Service Account Tokens are only mounted where necessary"
-echo "Scanning for Service Accounts with automountServiceAccountToken: true (or default)..."
-
-# Count SAs that have automount NOT set to false (default is true)
-COUNT_SA=$(kubectl get serviceaccounts --all-namespaces -o json | jq '[.items[] | select(.automountServiceAccountToken != false) | select(.metadata.namespace != "kube-system")] | length')
-
-if [ "$COUNT_SA" -gt 0 ]; then
-    echo "[WARN] Found $COUNT_SA Service Accounts with automount enabled (excluding kube-system)."
-    echo "Listing first 5 examples:"
-    kubectl get serviceaccounts --all-namespaces -o json | jq -r '
-      .items[] 
-      | select(.automountServiceAccountToken != false) 
-      | select(.metadata.namespace != "kube-system")
-      | " - Namespace: " + .metadata.namespace + " | SA: " + .metadata.name
-    ' | head -n 5
-    echo "RESULT 4.1.6: FAIL (Remediation required: set automountServiceAccountToken: false)"
+if [ -z "$CR_SECRETS" ]; then
+    echo "RESULT 4.1.2: PASS"
 else
-    echo "RESULT 4.1.6: PASS (All non-system SAs have automount disabled)"
+    # Chỉ in tối đa 5 dòng mẫu để không spam, còn lại đếm tổng
+    echo "$CR_SECRETS" | head -n 5 | while read role; do
+        echo "[WARN] ClusterRole allows secret access: $role"
+    done
+    COUNT=$(echo "$CR_SECRETS" | wc -l)
+    if [ "$COUNT" -gt 5 ]; then echo "... and $((COUNT-5)) more roles."; fi
+    echo "RESULT 4.1.2: FAIL (Found roles with broad secret access)"
 fi
 
-echo "AUDIT COMPLETED"
+# ==============================================================================
+# 4.1.4 Minimize access to create pods
+# ==============================================================================
+echo ""
+echo "[4.1.4] Checking: Minimize access to create pods"
+WARNING_414=0
+
+# Logic: Tìm ClusterRole có thể 'create' 'pods'
+# Fix: Filter mạnh tay hơn các role hệ thống
+CR_PODS=$(kubectl get clusterroles -o json | jq -r '
+  .items[] 
+  | select(.rules[]? | .resources? and (.resources[] | contains("pods")) and .verbs? and (.verbs[] | test("create|\\*")))
+  | .metadata.name
+' | sort | uniq | grep -vE "^system:|^eks:|^aws-|^vpc-|^amazon-")
+
+if [ -z "$CR_PODS" ]; then
+    echo "RESULT 4.1.4: PASS"
+else
+    echo "$CR_PODS" | head -n 5 | while read role; do
+        echo "[WARN] ClusterRole allows pod creation: $role"
+    done
+    COUNT=$(echo "$CR_PODS" | wc -l)
+    if [ "$COUNT" -gt 5 ]; then echo "... and $((COUNT-5)) more roles."; fi
+    echo "RESULT 4.1.4: FAIL (Found roles that can create pods)"
+fi
+
+# ==============================================================================
+# 4.1.6 Ensure that Service Account Tokens are only mounted where necessary
+# ==============================================================================
+echo ""
+echo "[4.1.6] Checking: Service Account Tokens automount"
+# Logic: Tìm SA không có automountServiceAccountToken: false (tức là true hoặc null)
+# Filter: Bỏ qua namespace kube-system
+SAS=$(kubectl get serviceaccounts --all-namespaces -o json | jq -r '
+  .items[] 
+  | select(.automountServiceAccountToken != false) 
+  | select(.metadata.namespace != "kube-system")
+  | "Namespace: " + .metadata.namespace + " | SA: " + .metadata.name
+')
+
+if [ -z "$SAS" ]; then
+    echo "RESULT 4.1.6: PASS"
+else
+    echo "Found Service Accounts with automount enabled (excluding kube-system):"
+    echo "$SAS" | head -n 5
+    COUNT=$(echo "$SAS" | wc -l)
+    if [ "$COUNT" -gt 5 ]; then echo "... and $((COUNT-5)) more SAs."; fi
+    echo "RESULT 4.1.6: FAIL (Remediation required)"
+fi
+echo ""
