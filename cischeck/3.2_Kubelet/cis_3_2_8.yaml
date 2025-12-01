@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: kubelet-rotate-cert-audit
+  name: cis_3_2_8
   namespace: kube-system
 spec:
   template:
@@ -9,13 +9,13 @@ spec:
       serviceAccountName: cluster-admin-sa
       restartPolicy: Never
       containers:
-      - name: kubelet-rotate-cert-audit
+      - name: cis_3_2_8
         image: bitnami/kubectl:latest
         command:
           - /bin/sh
           - -c
           - |
-            echo "Starting Kubelet RotateCertificate Audit"
+            echo "=== CIS 3.2.8 - Ensure that the --rotate-certificates argument is not present or is set to true"
 
             NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
             

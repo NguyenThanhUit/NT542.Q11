@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: kubelet-streaming-timeout-audit
+  name: cis_3_2_5
   namespace: kube-system
 spec:
   template:
@@ -9,13 +9,13 @@ spec:
       serviceAccountName: cluster-admin-sa
       restartPolicy: Never
       containers:
-      - name: kubelet-streaming-timeout-audit
+      - name: cis_3_2_5
         image: bitnami/kubectl:latest
         command:
           - /bin/sh
           - -c
           - |
-            echo "Starting Kubelet Streaming Timeout Audit"
+            echo "=== CIS 3.2.5 - Ensure that the --streaming-connection-idle-timeout argument is not set to 0"
 
             NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
 
@@ -32,5 +32,21 @@ spec:
 
               TIMEOUT=$(echo "$RAW" | jq -r '.kubeletconfig.streamingConnectionIdleTimeout // empty')
 
-              # CASE 1: Không có trường
-              if [ -z "$TIMEOUT" ] ||
+        
+              if [ -z "$TIMEOUT" ] || [ "$TIMEOUT" = "null" ]; then
+                echo "[PASS] streamingConnectionIdleTimeout not set (uses safe default)"
+                continue
+              fi
+
+
+              if [ "$TIMEOUT" = "0" ] || [ "$TIMEOUT" = "0s" ] || [ "$TIMEOUT" = "0m" ] || [ "$TIMEOUT" = "0h" ]; then
+                echo "[FAIL] streamingConnectionIdleTimeout=$TIMEOUT (must not be 0)"
+              else
+                echo "[PASS] streamingConnectionIdleTimeout=$TIMEOUT"
+              fi
+
+            done
+
+            echo "Audit complete"
+      nodeSelector:
+        kubernetes.io/os: linux

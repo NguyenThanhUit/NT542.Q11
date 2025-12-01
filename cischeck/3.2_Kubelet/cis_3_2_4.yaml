@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: kubelet-readonly-audit
+  name: cis_3_2_4
   namespace: kube-system
 spec:
   template:
@@ -9,13 +9,13 @@ spec:
       serviceAccountName: cluster-admin-sa
       restartPolicy: Never
       containers:
-      - name: kubelet-readonly-audit
+      - name: cis_3_2_4
         image: bitnami/kubectl:latest
         command:
           - /bin/sh
           - -c
           - |
-            echo "Starting Kubelet Read-Only Port Audit"
+            echo "=== 3.2.4 Ensure that the --read-only-port is disabled"
             NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
 
             for NODE in $NODES; do

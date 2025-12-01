@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: kubelet-make-iptables-audit
+  name: cis_3_2_6
   namespace: kube-system
 spec:
   template:
@@ -9,13 +9,13 @@ spec:
       serviceAccountName: cluster-admin-sa
       restartPolicy: Never
       containers:
-      - name: kubelet-make-iptables-audit
+      - name: cis_3_2_6
         image: bitnami/kubectl:latest
         command:
           - /bin/sh
           - -c
           - |
-            echo "Starting Kubelet makeIPTablesUtilChains Audit"
+            echo "=== CIS 3.2.6 - Ensure that the --make-iptables-util-chains argument is set to true "
 
             NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
 
@@ -32,14 +32,14 @@ spec:
 
               VALUE=$(echo "$RAW" | jq -r '.kubeletconfig.makeIPTablesUtilChains // empty')
 
-              # CASE 1: Không có trường => PASS
+            
               if [ -z "$VALUE" ]; then
                 echo "[INFO] makeIPTablesUtilChains not defined -> using default"
                 echo "[PASS] makeIPTablesUtilChains is true by default"
                 continue
               fi
 
-              # CASE 2: Định nghĩa rõ ràng => kiểm tra true/false
+          
               if [ "$VALUE" = "true" ]; then
                 echo "[PASS] makeIPTablesUtilChains=true"
               else

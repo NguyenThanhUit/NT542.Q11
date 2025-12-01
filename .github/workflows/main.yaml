@@ -103,6 +103,19 @@ jobs:
             chmod +x cis_5_1_1.sh
             ./cis_5_1_1.sh ${{env.ECR_REPOSITORY}} ${{env.AWS_REGION}}
 
+      # CIS 4.1 RBAC Service Account
+      - name: 4.1 RBAC Service Account
+        run: |
+          cd cischeck/4.1_RBAC_ServiceAccount
+          chmod +x audit_cis_rbac.sh
+          ./audit_cis_rbac.sh
+      
+      - name: 4.2 Audit Pod Security
+        run: |
+          cd cischeck/4.2_audit_pod_security
+          chmod +x audit_cis_pod_security.sh
+          ./audit_cis_pod_security.sh
+
       # CIS 5.2 IAM
       - name: 5.2 IAM
         run: |
@@ -128,6 +141,14 @@ jobs:
           cd cischeck/5.4_CLUSTER_NETWORKING
           chmod +x cis_5_4_3.sh
           ./cis_5_4_3.sh ${{ env.EKS_CLUSTER }} ${{ env.AWS_REGION }}
+
+      - name: 5.4.4 Ensure Network Policy is Enabled and set as appropriate
+        run: |
+          kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+          kubectl wait --for=condition=Ready pods -n kube-system -l k8s-app=calico-node --timeout=100s
+          cd cischeck/5.4_CLUSTER_NETWORKING
+          chmod +x cis_5_4_4.sh
+          ./cis_5_4_4.sh ${{ env.AWS_REGION }} ${{ env.EKS_CLUSTER }}
 
   Node_Cis_Check:
     runs-on: ubuntu-latest
@@ -155,21 +176,41 @@ jobs:
           kubectl apply -f cischeck/file-pod-check.yaml
 
       - name: Wait for pod ready
-        run: |
-          kubectl wait --for=condition=Ready pod/cis-node-check --timeout=60s
+        run: kubectl wait --for=condition=Ready pod/file-check --timeout=120s
 
       - name: Copy CIS scripts to pod
         run: |
-          kubectl cp cischeck/3.1_kubelet/ cis-node-check:/tmp/cischeck/
+          kubectl cp cischeck/3.1_kubelet/ file-check:/tmp/cischeck/
 
-      - name: Run Kubelet CIS scripts inside pod
+      - name: Run CIS 3.1.3
         run: |
-          kubectl exec cis-node-check -- sh -c "chmod +x /tmp/cischeck/*.sh && \
-          /tmp/cischeck/cis_3_1_3_anonymous_auth.sh /host /host/etc/kubernetes/kubelet/config.json && \
+          kubectl exec file-check -- sh -c "chmod +x /tmp/cischeck/cis_3_1_3_anonymous_auth.sh && \
+          /tmp/cischeck/cis_3_1_3_anonymous_auth.sh /host /host/etc/kubernetes/kubelet/config.json"
+
+      - name: Run CIS 3.2.2
+        run: |
+          kubectl exec file-check -- sh -c "chmod +x /tmp/cischeck/cis_3_2_2_authorization_mode.sh && \
           /tmp/cischeck/cis_3_2_2_authorization_mode.sh /host /host/etc/kubernetes/kubelet/config.json"
 
       - name: Cleanup privileged pod
+        run: kubectl delete -f cischeck/file-pod-check.yaml
+
+      - name: Run CIS 3.2.x Jobs
         run: |
-          kubectl delete -f cischeck/file-pod-check.yaml
+          NAMESPACE=kube-system
+          for i in {1..9}; do
+            JOB_FILE="cischeck/3.2_Kubelet/cis_3_2_$i.yaml"
+            echo "=== Applying $JOB_FILE ==="
+            kubectl apply -f $JOB_FILE
 
+            # Lấy tên Job từ file
+            JOB_NAME=$(basename $JOB_FILE .yaml)
+            # Chờ Job hoàn thành
+            kubectl wait --for=condition=complete --timeout=10s job/$JOB_NAME -n $NAMESPACE || echo "[WARN] Job $JOB_NAME timeout"
 
+            # Lấy log Pod
+            POD_NAME=$(kubectl get pods -n $NAMESPACE -l job-name=$JOB_NAME -o jsonpath='{.items[0].metadata.name}')
+            echo "---- Logs for $JOB_NAME ----"
+            kubectl logs $POD_NAME -n $NAMESPACE
+            echo "---------------------------"
+          done
