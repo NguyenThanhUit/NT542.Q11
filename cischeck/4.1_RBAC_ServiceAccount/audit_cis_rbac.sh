@@ -1,105 +1,100 @@
-#!/bin/bash
+echo "[4.1.1] Checking: Cluster-admin usage (Smart Check)"
 
-echo "CIS BENCHMARK AUDIT: 4.1 RBAC AND SERVICE ACCOUNTS (FIXED OUTPUT)"
-echo "Cluster Context: $(kubectl config current-context)"
-echo "----------------------------------------------------------------"
-
-# ==============================================================================
-# 4.1.1 Ensure that the cluster-admin role is only used where required
-# ==============================================================================
-echo ""
-echo "[4.1.1] Checking: Ensure that the cluster-admin role is only used where required"
-WARNING_411=0
-# Lấy danh sách, lọc bỏ system/eks, đếm số lượng
-kubectl get clusterrolebindings -o json | jq -r '
+# 1. Lấy tất cả binding trỏ tới 'cluster-admin'.
+# 2. Loại bỏ các binding mà Subject là Group 'system:masters' hoặc 'system:nodes' (đây là core K8s).
+# 3. Báo động tất cả các trường hợp còn lại (User cụ thể, ServiceAccount cụ thể).
+ADMIN_BINDINGS=$(kubectl get clusterrolebindings -o json | jq -r '
   .items[]
   | select(.roleRef.name == "cluster-admin")
-  | .metadata.name + " -> " + (.subjects[]? | .kind + "/" + .name)
-' | grep -vE "^system:|^eks:|^aws-node|^addon-" | sort | uniq | while read line; do
-    echo "[WARN] Check this binding: $line"
-    ((WARNING_411++))
-done
+  | .subjects[]?
+  | select(.kind == "User" or (.kind == "Group" and (.name | startswith("system:") | not)) or .kind == "ServiceAccount")
+  | "TYPE: " + .kind + " | NAME: " + .name + " | NS: " + (.namespace // "Cluster-Scope")
+' | sort | uniq)
 
-if [ "$WARNING_411" -eq 0 ]; then
-  echo "RESULT 4.1.1: PASS"
+if [ -z "$ADMIN_BINDINGS" ]; then
+  echo "RESULT 4.1.1: PASS (No suspicious user/SA has cluster-admin)"
 else
-  echo "RESULT 4.1.1: FAIL (Found $WARNING_411 suspicious admin bindings)"
+  # Đếm số dòng
+  COUNT=$(echo "$ADMIN_BINDINGS" | wc -l)
+  echo "$ADMIN_BINDINGS" | while read line; do
+     echo " [WARN] $line"
+  done
+  echo "RESULT 4.1.1: FAIL (Found $COUNT non-system entities with cluster-admin)"
 fi
 
-# ==============================================================================
-# 4.1.2 Minimize access to secrets
-# ==============================================================================
+# 4.1.2 & 4.1.4: Lọc dựa trên System Labels
+# Hàm dùng chung để check role nguy hiểm
+check_roles() {
+    RESOURCE=$1
+    VERB_REGEX=$2
+    LABEL_DESC=$3
+
+
+    # 1. Tìm role có quyền truy cập resource.
+    # 2. LOẠI BỎ các role có label "kubernetes.io/bootstrapping=rbac-defaults" (Role chuẩn của K8s).
+    # 3. LOẠI BỎ các role bắt đầu bằng "system:" (Role nội bộ của Control Plane).
+    # -> Kết quả: Chỉ hiện ra Role do người dùng/tool cài thêm (Custom Roles).
+    kubectl get clusterroles -o json | jq -r --arg res "$RESOURCE" --arg regex "$VERB_REGEX" '
+      .items[]
+      | select(.metadata.labels["kubernetes.io/bootstrapping"] != "rbac-defaults")
+      | select(.metadata.name | startswith("system:") | not)
+      | select(.rules[]? | .resources? and (.resources[] | contains($res)) and .verbs? and (.verbs[] | test($regex)))
+      | .metadata.name
+    ' | sort | uniq
+}
+
 echo ""
-echo "[4.1.2] Checking: Minimize access to secrets"
-WARNING_412=0
+echo "[4.1.2] Checking: Minimize access to Secrets (Custom Roles only)"
+BAD_SECRET_ROLES=$(check_roles "secrets" "get|list|watch|\\*")
 
-# Logic: Tìm ClusterRole có rules truy cập 'secrets' với quyền 'get/list/watch'
-# Fix: Dùng sort | uniq để không in lặp lại tên Role
-CR_SECRETS=$(kubectl get clusterroles -o json | jq -r '
-  .items[] 
-  | select(.rules[]? | .resources? and (.resources[] | contains("secrets")) and .verbs? and (.verbs[] | test("get|list|watch|\\*")))
-  | .metadata.name
-' | sort | uniq | grep -vE "^system:|^eks:|^aws-|^vpc-resource-controller")
-
-if [ -z "$CR_SECRETS" ]; then
+if [ -z "$BAD_SECRET_ROLES" ]; then
     echo "RESULT 4.1.2: PASS"
 else
-    # Chỉ in tối đa 5 dòng mẫu để không spam, còn lại đếm tổng
-    echo "$CR_SECRETS" | head -n 5 | while read role; do
-        echo "[WARN] ClusterRole allows secret access: $role"
-    done
-    COUNT=$(echo "$CR_SECRETS" | wc -l)
-    if [ "$COUNT" -gt 5 ]; then echo "... and $((COUNT-5)) more roles."; fi
-    echo "RESULT 4.1.2: FAIL (Found roles with broad secret access)"
+    echo "$BAD_SECRET_ROLES" | head -n 5 | while read role; do echo " [WARN] Custom Role allows Secrets: $role"; done
+    COUNT=$(echo "$BAD_SECRET_ROLES" | wc -l)
+    [ "$COUNT" -gt 5 ] && echo " ... and $((COUNT-5)) more."
+    echo "RESULT 4.1.2: FAIL (Found custom roles exposing secrets)"
 fi
 
-# ==============================================================================
-# 4.1.4 Minimize access to create pods
-# ==============================================================================
 echo ""
-echo "[4.1.4] Checking: Minimize access to create pods"
-WARNING_414=0
+echo "[4.1.4] Checking: Minimize access to Create Pods (Custom Roles only)"
+BAD_POD_ROLES=$(check_roles "pods" "create|\\*")
 
-# Logic: Tìm ClusterRole có thể 'create' 'pods'
-# Fix: Filter mạnh tay hơn các role hệ thống
-CR_PODS=$(kubectl get clusterroles -o json | jq -r '
-  .items[] 
-  | select(.rules[]? | .resources? and (.resources[] | contains("pods")) and .verbs? and (.verbs[] | test("create|\\*")))
-  | .metadata.name
-' | sort | uniq | grep -vE "^system:|^eks:|^aws-|^vpc-|^amazon-")
-
-if [ -z "$CR_PODS" ]; then
+if [ -z "$BAD_POD_ROLES" ]; then
     echo "RESULT 4.1.4: PASS"
 else
-    echo "$CR_PODS" | head -n 5 | while read role; do
-        echo "[WARN] ClusterRole allows pod creation: $role"
-    done
-    COUNT=$(echo "$CR_PODS" | wc -l)
-    if [ "$COUNT" -gt 5 ]; then echo "... and $((COUNT-5)) more roles."; fi
-    echo "RESULT 4.1.4: FAIL (Found roles that can create pods)"
+    echo "$BAD_POD_ROLES" | head -n 5 | while read role; do echo " [WARN] Custom Role allows Pod create: $role"; done
+    COUNT=$(echo "$BAD_POD_ROLES" | wc -l)
+    [ "$COUNT" -gt 5 ] && echo " ... and $((COUNT-5)) more."
+    echo "RESULT 4.1.4: FAIL (Found custom roles creating pods)"
 fi
 
-# ==============================================================================
-# 4.1.6 Ensure that Service Account Tokens are only mounted where necessary
-# ==============================================================================
+
+# 4.1.6 Service Account
 echo ""
-echo "[4.1.6] Checking: Service Account Tokens automount"
-# Logic: Tìm SA không có automountServiceAccountToken: false (tức là true hoặc null)
-# Filter: Bỏ qua namespace kube-system
-SAS=$(kubectl get serviceaccounts --all-namespaces -o json | jq -r '
-  .items[] 
-  | select(.automountServiceAccountToken != false) 
-  | select(.metadata.namespace != "kube-system")
-  | "Namespace: " + .metadata.namespace + " | SA: " + .metadata.name
+echo "[4.1.6] Checking: Automount on 'default' ServiceAccounts"
+
+# Thay vì check tất cả SA, chỉ check SA tên là "default".
+# Đây là recommend quan trọng nhất của CIS vì SA này có mặt ở mọi namespace.
+DEFAULT_SAS=$(kubectl get serviceaccounts --all-namespaces -o json | jq -r '
+  .items[]
+  | select(.metadata.name == "default")
+  | select(.automountServiceAccountToken != false)
+  | .metadata.namespace
 ')
 
-if [ -z "$SAS" ]; then
-    echo "RESULT 4.1.6: PASS"
+if [ -z "$DEFAULT_SAS" ]; then
+    echo "RESULT 4.1.6: PASS (All default SAs have automount disabled)"
 else
-    echo "Found Service Accounts with automount enabled (excluding kube-system):"
-    echo "$SAS" | head -n 5
-    COUNT=$(echo "$SAS" | wc -l)
-    if [ "$COUNT" -gt 5 ]; then echo "... and $((COUNT-5)) more SAs."; fi
-    echo "RESULT 4.1.6: FAIL (Remediation required)"
+    # Đếm số lượng namespace vi phạm
+    COUNT=$(echo "$DEFAULT_SAS" | wc -l)
+    
+    # In ra dạng gọn gàng hơn
+    echo "Found 'default' SA with automount=true in these namespaces:"
+    echo "$DEFAULT_SAS" | head -n 5 | awk '{print " - " $0}'
+    
+    if [ "$COUNT" -gt 5 ]; then echo " ... and $((COUNT-5)) more namespaces."; fi
+    echo "RESULT 4.1.6: FAIL (Recommend: Patch 'default' SAs to automount=false)"
 fi
+
 echo ""
