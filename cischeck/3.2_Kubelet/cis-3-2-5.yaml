@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: cis_3_2_8
+  name: cis-3-2-5
   namespace: kube-system
 spec:
   template:
@@ -9,16 +9,16 @@ spec:
       serviceAccountName: cluster-admin-sa
       restartPolicy: Never
       containers:
-      - name: cis_3_2_8
+      - name: cis-3-2-5
         image: bitnami/kubectl:latest
         command:
           - /bin/sh
           - -c
           - |
-            echo "=== CIS 3.2.8 - Ensure that the --rotate-certificates argument is not present or is set to true"
+            echo "=== CIS 3.2.5 - Ensure that the --streaming-connection-idle-timeout argument is not set to 0"
 
             NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
-            
+
             for NODE in $NODES; do
               echo "---- Node: $NODE ----"
 
@@ -26,29 +26,27 @@ spec:
 
               if [ -z "$RAW" ]; then
                 echo "[INFO] /configz not accessible for $NODE. Assuming EKS defaults."
-                echo "[PASS] RotateCertificate is enabled by default on EKS"
+                echo "[PASS] streamingConnectionIdleTimeout default is not 0"
                 continue
               fi
 
-              VALUE=$(echo "$RAW" | jq -r '.kubeletconfig.RotateCertificates // empty')
+              TIMEOUT=$(echo "$RAW" | jq -r '.kubeletconfig.streamingConnectionIdleTimeout // empty')
 
-              # CASE 1: Không có trường RotateCertificates = PASS
-              if [ -z "$VALUE" ]; then
-                echo "[INFO] RotateCertificates not defined -> using default"
-                echo "[PASS] RotateCertificates default is SAFE"
+        
+              if [ -z "$TIMEOUT" ] || [ "$TIMEOUT" = "null" ]; then
+                echo "[PASS] streamingConnectionIdleTimeout not set (uses safe default)"
                 continue
               fi
 
-              # CASE 2: Giá trị tồn tại -> phải là true
-              if [ "$VALUE" = "true" ]; then
-                echo "[PASS] RotateCertificates=true"
+
+              if [ "$TIMEOUT" = "0" ] || [ "$TIMEOUT" = "0s" ] || [ "$TIMEOUT" = "0m" ] || [ "$TIMEOUT" = "0h" ]; then
+                echo "[FAIL] streamingConnectionIdleTimeout=$TIMEOUT (must not be 0)"
               else
-                echo "[FAIL] RotateCertificates is set to '$VALUE'"
+                echo "[PASS] streamingConnectionIdleTimeout=$TIMEOUT"
               fi
 
             done
 
             echo "Audit complete"
-
       nodeSelector:
         kubernetes.io/os: linux

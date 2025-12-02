@@ -199,12 +199,12 @@ jobs:
         run: |
           NAMESPACE=kube-system
           for i in {1..9}; do
-            JOB_FILE="cischeck/3.2_Kubelet/cis_3_2_$i.yaml"
+            JOB_FILE="cischeck/3.2_Kubelet/cis-3-2-$i.yaml"
             echo "=== Applying $JOB_FILE ==="
             kubectl apply -f $JOB_FILE
 
             # Lấy tên Job từ file
-            JOB_NAME=$(basename $JOB_FILE .yaml)
+            JOB_NAME="cis-3-2-$i"
             # Chờ Job hoàn thành
             kubectl wait --for=condition=complete --timeout=10s job/$JOB_NAME -n $NAMESPACE || echo "[WARN] Job $JOB_NAME timeout"
 

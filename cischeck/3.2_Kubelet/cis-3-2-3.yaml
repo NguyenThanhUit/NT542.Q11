@@ -1,21 +1,21 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: cis_3_2_9
+  name: cis-3-2-3
   namespace: kube-system
 spec:
   template:
     spec:
-      serviceAccountName: cluster-admin-sa
+      serviceAccountName: cluster-admin-sa  
       restartPolicy: Never
       containers:
-      - name: cis_3_2_9
+      - name: cis-3-2-3
         image: bitnami/kubectl:latest
         command:
           - /bin/sh
           - -c
           - |
-            echo "=== CIS 3.2.9 - Ensure that the RotateKubeletServerCertificate argument is set to true"
+            echo "=== CIS 3.2.3 - Ensure that a Client CA File is Configured"
             NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
             for NODE in $NODES; do
               echo "---- Node: $NODE ----"
@@ -23,13 +23,13 @@ spec:
 
               if [ -z "$RAW" ]; then
                 echo "[INFO] /configz not accessible on $NODE. Assuming EKS defaults."
-                echo "[PASS] RotateKubeletServerCertificate=true"
+                echo "[PASS] client-ca-file configured"
               else
-                ROTATE=$(echo "$RAW" | jq -r '.kubeletconfig.featureGates.RotateKubeletServerCertificate')
-                if [ "$ROTATE" = "true" ]; then
-                  echo "[PASS] RotateKubeletServerCertificate=true"
+                CLIENT_CA=$(echo "$RAW" | jq -r '.kubeletconfig.authentication.x509.clientCAFile // empty')
+                if [ -n "$CLIENT_CA" ]; then
+                  echo "[PASS] client-ca-file=$CLIENT_CA"
                 else
-                  echo "[FAIL] RotateKubeletServerCertificate=false"
+                  echo "[FAIL] client-ca-file not set"
                 fi
               fi
             done

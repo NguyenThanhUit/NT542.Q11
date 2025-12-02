@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: cis_3_2_5
+  name: cis-3-2-7
   namespace: kube-system
 spec:
   template:
@@ -9,13 +9,13 @@ spec:
       serviceAccountName: cluster-admin-sa
       restartPolicy: Never
       containers:
-      - name: cis_3_2_5
+      - name: cis-3-2-7
         image: bitnami/kubectl:latest
         command:
           - /bin/sh
           - -c
           - |
-            echo "=== CIS 3.2.5 - Ensure that the --streaming-connection-idle-timeout argument is not set to 0"
+            echo "=== CIS 3.2.7 - Ensure that the --eventRecordQPS argument is set to 0 or a level which ensures appropriate event capture"
 
             NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
 
@@ -26,27 +26,29 @@ spec:
 
               if [ -z "$RAW" ]; then
                 echo "[INFO] /configz not accessible for $NODE. Assuming EKS defaults."
-                echo "[PASS] streamingConnectionIdleTimeout default is not 0"
+                echo "[PASS] eventRecordQPS default is not dangerously low"
                 continue
               fi
 
-              TIMEOUT=$(echo "$RAW" | jq -r '.kubeletconfig.streamingConnectionIdleTimeout // empty')
+              VALUE=$(echo "$RAW" | jq -r '.kubeletconfig.eventRecordQPS // empty')
 
-        
-              if [ -z "$TIMEOUT" ] || [ "$TIMEOUT" = "null" ]; then
-                echo "[PASS] streamingConnectionIdleTimeout not set (uses safe default)"
+              if [ -z "$VALUE" ]; then
+                echo "[INFO] eventRecordQPS not defined -> using default"
+                echo "[PASS] eventRecordQPS uses safe default"
                 continue
               fi
 
-
-              if [ "$TIMEOUT" = "0" ] || [ "$TIMEOUT" = "0s" ] || [ "$TIMEOUT" = "0m" ] || [ "$TIMEOUT" = "0h" ]; then
-                echo "[FAIL] streamingConnectionIdleTimeout=$TIMEOUT (must not be 0)"
+              if [ "$VALUE" = "0" ]; then
+                echo "[PASS] eventRecordQPS=0 (unlimited, but allowed)"
+              elif [ "$VALUE" -gt 0 ] 2>/dev/null; then
+                echo "[PASS] eventRecordQPS=$VALUE (configured)"
               else
-                echo "[PASS] streamingConnectionIdleTimeout=$TIMEOUT"
+                echo "[FAIL] eventRecordQPS has invalid value: $VALUE"
               fi
 
             done
 
             echo "Audit complete"
+
       nodeSelector:
         kubernetes.io/os: linux

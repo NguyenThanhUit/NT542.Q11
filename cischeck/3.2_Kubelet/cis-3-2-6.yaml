@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: cis_3_2_6
+  name: cis-3-2-6
   namespace: kube-system
 spec:
   template:
@@ -9,7 +9,7 @@ spec:
       serviceAccountName: cluster-admin-sa
       restartPolicy: Never
       containers:
-      - name: cis_3_2_6
+      - name: cis-3-2-6
         image: bitnami/kubectl:latest
         command:
           - /bin/sh

@@ -1,35 +1,34 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: cis_3_2_3
+  name: cis-3-2-1
   namespace: kube-system
 spec:
   template:
     spec:
-      serviceAccountName: cluster-admin-sa  
+      serviceAccountName: cluster-admin-sa 
       restartPolicy: Never
       containers:
-      - name: cis_3_2_3
+      - name: cis-3-2-1
         image: bitnami/kubectl:latest
         command:
           - /bin/sh
           - -c
           - |
-            echo "=== CIS 3.2.3 - Ensure that a Client CA File is Configured"
+            echo "=== CIS 3.2.1 - Ensure that the Anonymous Auth is Not Enabled"
             NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
             for NODE in $NODES; do
               echo "---- Node: $NODE ----"
               RAW=$(kubectl get --raw /api/v1/nodes/$NODE/proxy/configz 2>/dev/null || echo "")
-
               if [ -z "$RAW" ]; then
-                echo "[INFO] /configz not accessible on $NODE. Assuming EKS defaults."
-                echo "[PASS] client-ca-file configured"
+                echo "[INFO] /configz not accessible on $NODE. Assuming EKS default anonymous-auth=false"
+                echo "[PASS] anonymous-auth=false"
               else
-                CLIENT_CA=$(echo "$RAW" | jq -r '.kubeletconfig.authentication.x509.clientCAFile // empty')
-                if [ -n "$CLIENT_CA" ]; then
-                  echo "[PASS] client-ca-file=$CLIENT_CA"
+                ANON=$(echo "$RAW" | jq -r '.kubeletconfig.authentication.anonymous.enabled')
+                if [ "$ANON" = "false" ]; then
+                  echo "[PASS] anonymous-auth=false"
                 else
-                  echo "[FAIL] client-ca-file not set"
+                  echo "[FAIL] anonymous-auth=true"
                 fi
               fi
             done

@@ -3,7 +3,7 @@
 AWS_REGION=$1
 CLUSTER_NAME=$2
 
-echo "=== CIS 5.4.3 – Ensure Private Nodes ==="
+echo "=== CIS 5.4.3 - Ensure clusters are created with Private Nodes  ==="
 echo
 
 # 1. Lấy nodegroups
