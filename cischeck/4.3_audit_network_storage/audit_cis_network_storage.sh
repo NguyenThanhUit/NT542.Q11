@@ -1,15 +1,8 @@
 #!/bin/bash
 
 echo "CIS BENCHMARK AUDIT: 4.3, 4.4, 4.5 (FIXED & OPTIMIZED)"
-echo "Cluster Context: $(kubectl config current-context)"
-echo "----------------------------------------------------------------"
 
-# ==============================================================================
-# 4.3.2 Ensure that all Namespaces have Network Policies defined
-# ==============================================================================
-echo ""
 echo "[4.3.2] Checking: Namespace Network Isolation"
-echo "Criteria: User namespaces must have NetworkPolicies. (Skipping kube-system/public)"
 
 FAIL_COUNT=0
 # Lấy danh sách NS, loại bỏ các NS hệ thống của K8s và AWS
@@ -32,17 +25,9 @@ else
     echo "RESULT 4.3.2: PASS (All user namespaces have policies)"
 fi
 
-# ==============================================================================
-# 4.4.1 Prefer using secrets as files over environment variables
-# ==============================================================================
-echo ""
-echo "----------------------------------------------------------------"
-echo "[4.4.1] Checking: Secrets used as Environment Variables"
-echo "Criteria: Check both 'valueFrom.secretKeyRef' AND 'envFrom.secretRef'"
 
-# SỬA LỖI:
-# 1. Check cả 'env' (biến lẻ) và 'envFrom' (load toàn bộ secret)
-# 2. Xử lý biến đếm bên ngoài subshell
+echo "[4.4.1] Checking: Secrets used as Environment Variables"
+
 SECRET_ENV_PODS=$(kubectl get pods -A -o json | jq -r '
   .items[] | 
   select(
@@ -67,11 +52,7 @@ else
     echo "RESULT 4.4.1: PASS (Secrets are mounted as files or not used in env)"
 fi
 
-# ==============================================================================
-# 4.5.2 The default namespace should not be used
-# ==============================================================================
-echo ""
-echo "----------------------------------------------------------------"
+
 echo "[4.5.2] Checking: Usage of 'default' namespace"
 
 # Kiểm tra kỹ các workload phổ biến
