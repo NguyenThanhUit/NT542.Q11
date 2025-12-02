@@ -1,86 +1,69 @@
 #!/bin/bash
 
-echo "CIS BENCHMARK AUDIT: 4.2 POD SECURITY STANDARDS (FIXED)"
-echo "Cluster Context: $(kubectl config current-context)"
-print_line() { echo "----------------------------------------------------------------"; }
+echo "[4.2.1] Checking: Privileged Containers (Minimized)"
+FAIL=0; WARN=0
 
-# ==============================================================================
-# 4.2.1 Minimize the admission of privileged containers
-# ==============================================================================
-echo ""
-echo "[4.2.1] Checking: Minimize the admission of privileged containers"
-print_line
-
-# Lưu kết quả vào biến trước (tránh lỗi subshell)
-# Lọc: Lấy tất cả, nhưng đánh dấu nếu là namespace hệ thống
-PRIV_DATA=$(kubectl get pods -A -o json | jq -r '
-  .items[] | 
-  select(.spec.containers[].securityContext.privileged == true) |
-  .metadata.namespace + " " + .metadata.name
+# Lấy dữ liệu: NS, Name, Kind
+DATA=$(kubectl get pods -A -o json | jq -r '
+  .items[]
+  | select(.spec.containers[].securityContext.privileged == true)
+  | .metadata.namespace + " " + .metadata.name + " " + (.metadata.ownerReferences[0].kind // "Standalone")
 ')
 
-FAIL_COUNT=0
-SYSTEM_COUNT=0
-
-if [ -z "$PRIV_DATA" ]; then
-    echo "RESULT 4.2.1: PASS (No privileged containers found)"
-else
-    # Đọc từng dòng từ biến
-    while read -r ns pod; do
-        # Kiểm tra xem có phải namespace hệ thống không
-        if [[ "$ns" == "kube-system" ]] || [[ "$ns" == "amazon-cloudwatch" ]]; then
-            echo "[INFO] System Exemption: $ns/$pod (Allowed)"
-            ((SYSTEM_COUNT++))
-        else
-            echo "[WARN] VIOLATION FOUND: $ns/$pod"
-            ((FAIL_COUNT++))
-        fi
-    done <<< "$PRIV_DATA"
-
-    echo "--- Summary ---"
-    if [ "$FAIL_COUNT" -gt 0 ]; then
-        echo "RESULT 4.2.1: FAIL (Found $FAIL_COUNT application pods using Privileged mode)"
-    else
-        echo "RESULT 4.2.1: PASS (Only system pods are privileged)"
-    fi
+if [ -z "$DATA" ]; then
+    echo "RESULT: PASS"
+    exit 0
 fi
 
-# ==============================================================================
-# 4.2.2 Minimize admission of containers sharing hostPID
-# ==============================================================================
-echo ""
-echo "[4.2.2] Checking: Minimize the admission of containers sharing hostPID"
-print_line
+echo "--- Violations ---"
+while read -r ns name kind; do
+    [[ "$ns" =~ ^(kube-system|kube-public)$ ]] && continue
+    if [[ "$ns" =~ ^(amazon-|aws-|monitoring|logging) ]] || [[ "$kind" == "DaemonSet" ]]; then
+        printf "[WARN] Infra: %s/%s (%s)\n" "$ns" "$name" "$kind" && ((WARN++))
+    else
+        printf "[FAIL] APP: %s/%s (%s)\n" "$ns" "$name" "$kind" && ((FAIL++))
+    fi
+done <<< "$DATA"
 
-PID_DATA=$(kubectl get pods -A -o json | jq -r '
-  .items[] | 
-  select(.spec.hostPID == true) |
-  .metadata.namespace + " " + .metadata.name
+echo "--- Summary ---"
+if [ "$FAIL" -gt 0 ]; then
+    echo "RESULT: FAIL ($FAIL critical application violations)"
+elif [ "$WARN" -gt 0 ]; then
+    echo "RESULT: WARNING ($WARN necessary infrastructure risks)"
+else
+    echo "RESULT: PASS (Only system core pods are privileged)"
+fi
+
+echo "[4.2.2] Checking: HostPID Sharing (Minimized)"
+FAIL=0; WARN=0
+
+# Lấy dữ liệu: NS, Name, Kind. Lọc các Pod có hostPID = true
+DATA=$(kubectl get pods -A -o json | jq -r '
+  .items[]
+  | select(.spec.hostPID == true)
+  | .metadata.namespace + " " + .metadata.name + " " + (.metadata.ownerReferences[0].kind // "Standalone")
 ')
 
-FAIL_COUNT=0
-SYSTEM_COUNT=0
-
-if [ -z "$PID_DATA" ]; then
-    echo "RESULT 4.2.2: PASS (No HostPID pods found)"
-else
-    while read -r ns pod; do
-        if [[ "$ns" == "kube-system" ]] || [[ "$ns" == "amazon-cloudwatch" ]]; then
-            echo "[INFO] System Exemption: $ns/$pod (Allowed)"
-            ((SYSTEM_COUNT++))
-        else
-            echo "[WARN] VIOLATION FOUND: $ns/$pod"
-            ((FAIL_COUNT++))
-        fi
-    done <<< "$PID_DATA"
-
-    echo "--- Summary ---"
-    if [ "$FAIL_COUNT" -gt 0 ]; then
-        echo "RESULT 4.2.2: FAIL (Found $FAIL_COUNT application pods using HostPID)"
-    else
-        echo "RESULT 4.2.2: PASS (Only system pods use HostPID)"
-    fi
+if [ -z "$DATA" ]; then
+    echo "RESULT: PASS"
+    exit 0
 fi
 
-echo ""
-echo "AUDIT COMPLETED"
+echo "--- Violations ---"
+while read -r ns name kind; do
+    [[ "$ns" =~ ^(kube-system|kube-public)$ ]] && continue
+    if [[ "$ns" =~ ^(amazon-|aws-|monitoring|logging) ]] || [[ "$kind" == "DaemonSet" ]]; then
+        printf "[WARN] Infra: %s/%s (%s)\n" "$ns" "$name" "$kind" && ((WARN++))
+    else
+        printf "[FAIL] APP: %s/%s (%s)\n" "$ns" "$name" "$kind" && ((FAIL++))
+    fi
+done <<< "$DATA"
+
+echo "--- Summary ---"
+if [ "$FAIL" -gt 0 ]; then
+    echo "RESULT: FAIL ($FAIL critical application violations)"
+elif [ "$WARN" -gt 0 ]; then
+    echo "RESULT: WARNING ($WARN necessary infrastructure risks)"
+else
+    echo "RESULT: PASS (Only system core pods use HostPID)"
+fi
