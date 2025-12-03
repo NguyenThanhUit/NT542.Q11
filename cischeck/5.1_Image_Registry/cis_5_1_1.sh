@@ -1,47 +1,57 @@
 #!/bin/bash
 
-REPO_NAME=$1
-REGION=$2
+REGION=$1
+shift              
+REPOSITORIES=("$@")
 
-if [ -z "$REPO_NAME" ] || [ -z "$REGION" ]; then
-  echo "Usage: $0 <ECR_REPOSITORY_NAME> <AWS_REGION>"
+if [ -z "$REGION" ] || [ ${#REPOSITORIES[@]} -eq 0 ]; then
+  echo "Usage: $0 <AWS_REGION> <REPO_1> <REPO_2> ... <REPO_N>"
   exit 1
 fi
 
+echo "[INFO] Checking scanOnPush for ${#REPOSITORIES[@]} repositories..."
+echo "------------------------------------------------------------"
 
-SCAN_STATUS=$(aws ecr describe-repositories \
-    --repository-names $REPO_NAME \
-    --region $REGION \
-    --query "repositories[].imageScanningConfiguration.scanOnPush" \
-    --output text 2>/dev/null)
+for REPO_NAME in "${REPOSITORIES[@]}"; do
+  echo "[CHECK] Repository: $REPO_NAME"
 
-if [ $? -ne 0 ]; then
-    echo "[ERROR] Repository '$REPO_NAME' not found or no permissions!"
-    exit 1
-fi
+  SCAN_STATUS=$(aws ecr describe-repositories \
+      --repository-names "$REPO_NAME" \
+      --region "$REGION" \
+      --query "repositories[].imageScanningConfiguration.scanOnPush" \
+      --output text 2>/dev/null)
 
-echo "[INFO] Current scanOnPush status: $SCAN_STATUS"
+  if [ $? -ne 0 ]; then
+      echo "[ERROR] '$REPO_NAME' not found or insufficient permissions!"
+      echo
+      continue
+  fi
 
+  echo " - scanOnPush: $SCAN_STATUS"
 
+  if [ "$SCAN_STATUS" == "True" ]; then
+      echo "[PASS] scanOnPush already enabled for '$REPO_NAME'"
+      echo
+      continue
+  fi
 
-if [ "$SCAN_STATUS" == "True" ]; then
-    echo "[PASS] scanOnPush is already enabled for repository '$REPO_NAME'"
-    exit 0
-fi
+  echo "[FAIL] scanOnPush is NOT enabled for '$REPO_NAME'"
+  echo "[ACTION] Enabling scanOnPush..."
 
+  aws ecr put-image-scanning-configuration \
+      --repository-name "$REPO_NAME" \
+      --image-scanning-configuration scanOnPush=true \
+      --region "$REGION"
 
-echo "[FAIL] scanOnPush is NOT enabled for repository '$REPO_NAME'"
-echo "[ACTION] Enabling scanOnPush now..."
+  if [ $? -eq 0 ]; then
+      echo "[FIXED] scanOnPush ENABLED for '$REPO_NAME'"
+      echo "[PASS] CIS 5.1.1 satisfied"
+  else
+      echo "[ERROR] Failed to enable scanOnPush for '$REPO_NAME'"
+  fi
 
-aws ecr put-image-scanning-configuration \
-    --repository-name $REPO_NAME \
-    --image-scanning-configuration scanOnPush=true \
-    --region $REGION
+  echo
+done
 
-if [ $? -eq 0 ]; then
-    echo "[FIXED] scanOnPush successfully enabled for '$REPO_NAME'"
-    echo "[PASS] CIS 5.1.1 requirement satisfied."
-else
-    echo "[ERROR] Failed to enable scanOnPush!"
-    exit 1
-fi
+echo "------------------------------------------------------------"
+echo "[DONE] CIS 5.1.1 check completed for all repositories."

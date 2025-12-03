@@ -20,9 +20,8 @@ env:
   AWS_ACCESS_KEY_ID: ${{secrets.AWS_ACCESS_KEY_ID}}
   AWS_SECRET_ACCESS_KEY: ${{secrets.AWS_SECRET_ACCESS_KEY}}
   BUCKET_TF_STATE: ${{secrets.BUCKET_TF_STATE}}
-  EKS_CLUSTER: specialProject
-  ECR_REPOSITORY: web-app
-  CONTAINER_NAME: devopsproject
+  EKS_CLUSTER: ${{secrets.EKS_CLUSTER}}
+  ECR_REPOSITORY: ${{secrets.ECR_REPOSITORY}}
 
 jobs:
   Cis_Check:
@@ -35,8 +34,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5.0.0
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
       
       - name: Install Dependencies
@@ -59,7 +58,7 @@ jobs:
         run: |
             cd cischeck/5.1_Image_Registry
             chmod +x cis_5_1_1.sh
-            ./cis_5_1_1.sh ${{env.ECR_REPOSITORY}} ${{env.AWS_REGION}}
+            ./cis_5_1_1.sh ${{env.AWS_REGION}} ${{env.ECR_REPOSITORY}}
 
       # CIS 4.1 RBAC Service Account
       - name: 4.1 RBAC Service Account
