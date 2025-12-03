@@ -79,6 +79,12 @@ jobs:
           ./audit_cis_pod_security.sh
 
       # CIS 5.4 Cluster Networking
+      - name: 5.4.1 Restrict Control Plane Endpoint
+        run: |
+          cd cischeck/5.4_CLUSTER_NETWORKING
+          chmod +x cis_5_4_1.sh
+          ./cis_5_4_1.sh ${{ env.EKS_CLUSTER }} ${{ env.AWS_REGION }} ${{ github.event.inputs.ALLOWED_CIDR }}
+
       - name: 5.4.2 Private Endpoint Enabled, Public Disabled
         run: |
           cd cischeck/5.4_CLUSTER_NETWORKING
@@ -99,12 +105,7 @@ jobs:
           ./cis_5_4_4.sh ${{ env.AWS_REGION }} ${{ env.EKS_CLUSTER }}
 
 
-      - name: 5.4.1 Restrict Control Plane Endpoint
-        run: |
-          cd cischeck/5.4_CLUSTER_NETWORKING
-          chmod +x cis_5_4_1.sh
-          ./cis_5_4_1.sh ${{ env.EKS_CLUSTER }} ${{ env.AWS_REGION }} ${{ github.event.inputs.ALLOWED_CIDR }}
-
+      
 
   Node_Cis_Check:
     runs-on: ubuntu-latest
