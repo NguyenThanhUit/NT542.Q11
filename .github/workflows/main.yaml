@@ -128,7 +128,7 @@ jobs:
 
       - name: Apply privileged pod
         run: |
-          kubectl apply -f cischeck/3.1_Workerd_Node_Configuration/file-pod-check.yaml
+          kubectl apply -f cischeck/3.1_Worker_Node_Configuration/file-pod-check.yaml
 
       - name: Wait for pod ready
         run: kubectl wait --for=condition=Ready pod/file-check --timeout=120s
