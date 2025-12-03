@@ -1,0 +1,13 @@
+#Lấy tên NodeInstanceRoleName
+aws eks describe-nodegroup \
+  --cluster-name project-eks \
+  --nodegroup-name node-group-1 \
+  --query "nodegroup.nodeRole" \
+  --output text
+
+
+
+aws iam put-role-policy \
+  --role-name <NodeInstanceRoleName> \
+  --policy-name ECRReadOnlyPolicy \
+  --policy-document file://ECRReadOnlyPolicy.json
