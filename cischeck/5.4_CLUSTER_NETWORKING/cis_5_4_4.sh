@@ -3,7 +3,7 @@
 AWS_REGION=$1
 CLUSTER_NAME=$2
 
-echo "=== CIS 5.4.4 – Ensure Network Policy is Enabled ==="
+echo "=== CIS 5.4.4 - Ensure Network Policy is Enabled ==="
 
 
 SEC_GRP_ID=$(aws eks describe-cluster \
