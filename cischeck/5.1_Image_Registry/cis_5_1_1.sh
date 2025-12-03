@@ -22,7 +22,7 @@ for REPO_NAME in "${REPOSITORIES[@]}"; do
       --output text 2>/dev/null)
 
   if [ $? -ne 0 ]; then
-      echo "[ERROR] '$REPO_NAME' not found or insufficient permissions!"
+      echo "[ERROR] '$REPO_NAME' not found or not inpproriate permissions!"
       echo
       continue
   fi
