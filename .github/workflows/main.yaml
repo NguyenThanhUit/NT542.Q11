@@ -84,13 +84,13 @@ jobs:
         run: |
           cd cischeck/5.4_CLUSTER_NETWORKING
           chmod +x cis_5_4_2.sh
-          ./cis_5_4_2.sh ${{ env.EKS_CLUSTER }} ${{ env.AWS_REGION }} ${{ github.event.inputs.ALLOWED_CIDR }}
+          ./cis_5_4_2.sh ${{ env.AWS_REGION }} ${{ env.EKS_CLUSTER }} ${{ github.event.inputs.ALLOWED_CIDR }}
 
       - name: 5.4.3 Ensure Private Nodes
         run: |
           cd cischeck/5.4_CLUSTER_NETWORKING
           chmod +x cis_5_4_3.sh
-          ./cis_5_4_3.sh ${{ env.EKS_CLUSTER }} ${{ env.AWS_REGION }}
+          ./cis_5_4_3.sh ${{ env.AWS_REGION }} ${{ env.EKS_CLUSTER }}
 
       - name: 5.4.4 Ensure Network Policy is Enabled and set as appropriate
         run: |

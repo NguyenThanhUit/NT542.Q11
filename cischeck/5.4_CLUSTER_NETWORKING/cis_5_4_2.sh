@@ -8,7 +8,6 @@ echo "=== CIS 5.4.2 -  Ensure clusters are created with Private Endpoint Enabled
 echo
 
 
-echo "[INFO] Fetching cluster endpoint configuration..."
 ENDPOINT_CONFIG=$(aws eks describe-cluster \
   --name "$CLUSTER_NAME" \
   --region "$AWS_REGION" \
