@@ -184,7 +184,7 @@ jobs:
             # Lấy tên Job từ file
             JOB_NAME="cis-3-2-$i"
             # Chờ Job hoàn thành
-            kubectl wait --for=condition=complete --timeout=10s job/$JOB_NAME -n $NAMESPACE || echo "[WARN] Job $JOB_NAME timeout"
+            kubectl wait --for=condition=complete --timeout=30s job/$JOB_NAME -n $NAMESPACE || echo "[WARN] Job $JOB_NAME timeout"
 
             # Lấy log Pod
             POD_NAME=$(kubectl get pods -n $NAMESPACE -l job-name=$JOB_NAME -o jsonpath='{.items[0].metadata.name}')
