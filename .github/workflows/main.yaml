@@ -100,7 +100,7 @@ jobs:
       - name: 5.4.4 Ensure Network Policy is Enabled and set as appropriate
         run: |
           kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml --validate=false
-          kubectl wait --for=condition=Ready pods -n kube-system -l k8s-app=calico-node --timeout=100s
+          kubectl wait --for=condition=Ready pods -n kube-system -l k8s-app=calico-node --timeout=200s
           cd cischeck/5.4_CLUSTER_NETWORKING
           chmod +x cis_5_4_4.sh
           ./cis_5_4_4.sh ${{ env.AWS_REGION }} ${{ env.EKS_CLUSTER }}
@@ -155,7 +155,7 @@ jobs:
           /tmp/cischeck/cis_3_2_2_authorization_mode.sh /host /host/etc/kubernetes/kubelet/config.json"
 
       - name: Cleanup privileged pod
-        run: kubectl delete -f cischeck/file-pod-check.yaml
+        run: kubectl delete -f cischeck/file-check-pod.yaml
 
       - name: Run CIS 3.2.x Jobs
         run: |
