@@ -1,2 +1,4 @@
 cis 5_2_1 phải trước 3.1
 nhớ phải tải jq
+
+aws eks update-cluster-config   --region us-east-1   --name project-eks   --resources-vpc-config endpointPrivateAccess=true   --resources-vpc-config endpointPublicAccess=true   --resources-vpc-config publicAccessCidrs=["0.0.0.0/0"]
