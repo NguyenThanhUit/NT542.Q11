@@ -192,6 +192,3 @@ jobs:
             kubectl logs $POD_NAME -n $NAMESPACE
             echo "---------------------------"
           done
-
-      - name: Cleanup privileged pod
-        run: kubectl delete -f cischeck/file-check-pod.yaml
