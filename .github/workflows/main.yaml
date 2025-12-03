@@ -95,7 +95,7 @@ jobs:
       - name: 5.4.4 Ensure Network Policy is Enabled and set as appropriate
         run: |
           kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml --validate=false
-          kubectl wait --for=condition=Ready pods -n kube-system -l k8s-app=calico-node --timeout=300s
+          kubectl wait --for=condition=Ready pods -n kube-system -l k8s-app=calico-node --timeout=420s
           cd cischeck/5.4_CLUSTER_NETWORKING
           chmod +x cis_5_4_4.sh
           ./cis_5_4_4.sh ${{ env.AWS_REGION }} ${{ env.EKS_CLUSTER }}

@@ -1,13 +1,15 @@
 #Lấy tên NodeInstanceRoleName
+aws eks list-nodegroups --cluster-name project-eks --region us-east-1
 aws eks describe-nodegroup \
   --cluster-name project-eks \
-  --nodegroup-name node-group-1 \
+  --nodegroup-name node-group-1-2025120304471885690000000f \
   --query "nodegroup.nodeRole" \
-  --output text
+  --output text\
+  --region us-east-1
 
 
 
 aws iam put-role-policy \
-  --role-name <NodeInstanceRoleName> \
+  --role-name node-group-1-eks-node-group-20251203043624175600000002 \
   --policy-name ECRReadOnlyPolicy \
-  --policy-document file://ECRReadOnlyPolicy.json
+  --policy-document file://5.2.3.policy.json

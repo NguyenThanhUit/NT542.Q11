@@ -4,7 +4,7 @@ AWS_REGION=$1
 CLUSTER_NAME=$2  
 MY_IP=$3
 
-echo "=== CIS 5.4.2 - Control Plane Endpoint Audit ==="
+echo "=== CIS 5.4.2 -  Ensure clusters are created with Private Endpoint Enabled and Public Access Disabled ==="
 echo
 
 

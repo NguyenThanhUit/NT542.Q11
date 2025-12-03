@@ -1,6 +1,6 @@
-aws iam put-user-policy `
-    --user-name admin `
-    --policy-name CIS_ECR_ServiceRepos_Policy `
+aws iam put-user-policy \
+    --user-name admin \
+    --policy-name CIS_ECR_ServiceRepos_Policy \
     --policy-document file://policy.json
 
 
