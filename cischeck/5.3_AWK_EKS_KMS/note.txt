@@ -1,3 +1,4 @@
 aws eks associate-encryption-config \
   --cluster-name project-eks \
-  --encryption-config '[{"resources":["secrets"],"provider":{"keyArn":"arn:aws:kms:us-east-1:181040560981:key/52435813-8fa9-48b0-a466-54ff955ab171"}}]'
+  --encryption-config '[{"resources":["secrets"],"provider":{"keyArn":"arn:aws:kms:us-east-1:181040560981:key/52435813-8fa9-48b0-a466-54ff955ab171"}}]' \
+  --region us-east-1

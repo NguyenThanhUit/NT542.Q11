@@ -45,6 +45,11 @@ jobs:
           curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
           unzip awscliv2.zip
           sudo ./aws/install --bin-dir /usr/local/bin --update
+      
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }}
+
 
       # CIS 2.1 Logging
       - name: 2.1 Logging
@@ -73,13 +78,6 @@ jobs:
           chmod +x audit_cis_pod_security.sh
           ./audit_cis_pod_security.sh
 
-      # CIS 5.2 IAM
-      - name: 5.2 IAM
-        run: |
-            cd cischeck/5.2_IAM
-            chmod +x cis_5_2_1.sh
-            ./cis_5_2_1.sh
-
       # CIS 5.4 Cluster Networking
       - name: 5.4.1 Restrict Control Plane Endpoint
         run: |
@@ -101,7 +99,7 @@ jobs:
 
       - name: 5.4.4 Ensure Network Policy is Enabled and set as appropriate
         run: |
-          kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+          kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml --validate=false
           kubectl wait --for=condition=Ready pods -n kube-system -l k8s-app=calico-node --timeout=100s
           cd cischeck/5.4_CLUSTER_NETWORKING
           chmod +x cis_5_4_4.sh
@@ -130,10 +128,17 @@ jobs:
 
       - name: Apply privileged pod
         run: |
-          kubectl apply -f cischeck/file-pod-check.yaml
+          kubectl apply -f cischeck/3.1_Workerd_Node_Configuration/file-pod-check.yaml
 
       - name: Wait for pod ready
         run: kubectl wait --for=condition=Ready pod/file-check --timeout=120s
+
+      # CIS 5.2 IAM
+      - name: 5.2 IAM
+        run: |
+            cd cischeck/5.2_IAM
+            chmod +x cis_5_2_1.sh
+            ./cis_5_2_1.sh
 
       - name: Copy CIS scripts to pod
         run: |
