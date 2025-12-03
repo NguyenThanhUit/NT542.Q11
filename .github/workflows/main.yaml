@@ -144,20 +144,7 @@ jobs:
 
       - name: Copy CIS scripts to pod
         run: |
-          kubectl cp cischeck/3.1_Kubelet/ file-check:/tmp/cischeck/
-
-      - name: Run CIS 3.1.3
-        run: |
-          kubectl exec file-check -- sh -c "chmod +x /tmp/cischeck/cis_3_1_3_anonymous_auth.sh && \
-          /tmp/cischeck/cis_3_1_3_anonymous_auth.sh /host /host/etc/kubernetes/kubelet/config.json"
-
-      - name: Run CIS 3.2.2
-        run: |
-          kubectl exec file-check -- sh -c "chmod +x /tmp/cischeck/cis_3_2_2_authorization_mode.sh && \
-          /tmp/cischeck/cis_3_2_2_authorization_mode.sh /host /host/etc/kubernetes/kubelet/config.json"
-
-      - name: Cleanup privileged pod
-        run: kubectl delete -f cischeck/file-check-pod.yaml
+          kubectl cp cischeck/3.2_Kubelet/ file-check:/tmp/cischeck/
 
       - name: Run CIS 3.2.x Jobs
         run: |
@@ -178,3 +165,6 @@ jobs:
             kubectl logs $POD_NAME -n $NAMESPACE
             echo "---------------------------"
           done
+
+      - name: Cleanup privileged pod
+        run: kubectl delete -f cischeck/file-check-pod.yaml
