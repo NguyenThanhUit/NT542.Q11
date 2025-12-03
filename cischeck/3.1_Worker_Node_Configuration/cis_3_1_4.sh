@@ -5,7 +5,7 @@ echo "=== CIS 3.1.4 -  Ensure that the kubelet configuration file ownership is s
 
 
 echo ">> Checking kubelet config file ownership..."
-OUTPUT=$(kubectl exec file-check -- stat -c %U:%G /host/etc/kubernetes/kubelet/config.json)
+OUTPUT=$(kubectl exec file-check -- stat -c %U:%G /host/etc/kubernetes/kubelet/kubelet-config.json)
 
 echo "Ownership: $OUTPUT"
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-CONFIG_PATH="/etc/kubernetes/kubelet/config.json"
+CONFIG_PATH="/etc/kubernetes/kubelet/kubelet-config.json"
 HOST_PATH="/host${CONFIG_PATH}"
 echo "=== CIS 3.1.3 - Ensure that the kubelet configuration file has permissions set to 644 or more restrictive ==="
 
