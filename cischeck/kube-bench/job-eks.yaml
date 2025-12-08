@@ -1,4 +1,38 @@
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-bench
+  namespace: kube-system
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-bench
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods", "namespaces"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-bench
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-bench
+subjects:
+  - kind: ServiceAccount
+    name: kube-bench
+    namespace: kube-system
+
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -7,13 +41,14 @@ metadata:
 spec:
   template:
     spec:
+      serviceAccountName: kube-bench
+      automountServiceAccountToken: true
+
       hostPID: true
+
       containers:
         - name: kube-bench
-          # Push the image to your ECR and then refer to it here
-          # image: <ID.dkr.ecr.region.amazonaws.com/aquasec/kube-bench:ref>
-          image: docker.io/aquasec/kube-bench:latest
-          # To send findings to AWS Security Hub, refer to `job-eks-asff.yaml` instead
+          image: aquasec/kube-bench:latest
           command:
             [
               "kube-bench",
@@ -21,8 +56,9 @@ spec:
               "--targets",
               "node,policies,managedservices,controlplane",
               "--benchmark",
-              "eks-1.5.0",
+              "eks-1.5.0"
             ]
+
           volumeMounts:
             - name: var-lib-kubelet
               mountPath: /var/lib/kubelet
@@ -33,7 +69,9 @@ spec:
             - name: etc-kubernetes
               mountPath: /etc/kubernetes
               readOnly: true
+
       restartPolicy: Never
+
       volumes:
         - name: var-lib-kubelet
           hostPath:

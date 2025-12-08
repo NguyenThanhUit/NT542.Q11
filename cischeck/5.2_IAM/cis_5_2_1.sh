@@ -12,7 +12,7 @@ for ns in $NAMESPACES; do
 
     SA=$(kubectl get sa default -n $ns --ignore-not-found)
     if [[ -z "$SA" ]]; then
-        echo "INFO: No default service account in $ns"
+        echo "[INFO]: No default service account in $ns"
         continue
     fi
 
@@ -24,7 +24,7 @@ for ns in $NAMESPACES; do
         echo "[WARN] Default service account in namespace '$ns' has role bindings!"
         echo "       RoleBinding: $RB"
         echo "       ClusterRoleBinding: $CRB"
-        echo "       → Manual review required."
+        echo "        Manual review required."
     else
         echo "[OK] Default SA has no extra role bindings."
     fi
@@ -35,7 +35,7 @@ for ns in $NAMESPACES; do
     if [[ "$AUTO" == "false" ]]; then
         echo "[OK] automountServiceAccountToken=false"
     else
-        echo "[WARN] automountServiceAccountToken is NOT false → Fixing..."
+        echo "[WARN] automountServiceAccountToken is NOT false"
         
         # Remediation
         kubectl patch sa default -n $ns -p '{"automountServiceAccountToken": false}' >/dev/null

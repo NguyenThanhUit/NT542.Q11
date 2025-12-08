@@ -192,3 +192,25 @@ jobs:
             kubectl logs $POD_NAME -n $NAMESPACE
             echo "---------------------------"
           done
+
+  # ===========================
+      #  FINAL SUMMARY FILE
+      # ===========================
+      - name: Generate CIS Summary File
+        run: |
+          echo "===== CIS SUMMARY REPORT =====" > cis-summary.txt
+          echo "" >> cis-summary.txt
+          echo "[*] Collecting PASS/FAIL/WARN from workflow logs..." >> cis-summary.txt
+          echo "" >> cis-summary.txt
+
+          # Thu toàn bộ output từ run steps
+          grep -RinE "PASS|FAIL|WARN|\[OK\]|\[WARN\]|\[FAIL\]" . >> cis-summary.txt || true
+
+          echo "" >> cis-summary.txt
+          echo "===== END OF REPORT =====" >> cis-summary.txt
+
+      - name: Upload CIS Summary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cis-summary
+          path: cis-summary.txt

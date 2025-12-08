@@ -40,7 +40,7 @@ else
     aws eks update-cluster-config \
       --region "$AWS_REGION" \
       --name "$CLUSTER_NAME" \
-      --resources-vpc-config endpointPrivateAccess=true,endpointPublicAccess=true,publicAccessCidrs="$MY_IP"
+      --resources-vpc-config endpointPrivateAccess=true,endpointPublicAccess=false,publicAccessCidrs="$MY_IP"
     
     echo "[FIXED] Public endpoint restricted to $MY_IP"
 fi
