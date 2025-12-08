@@ -196,14 +196,24 @@ jobs:
   # ===========================
       #  FINAL SUMMARY FILE
       # ===========================
-      - name: Generate CIS Summary File
+  Summary_Report:
+    runs-on: ubuntu-latest
+    needs: [Node_Cis_Check, Cis_Cluster_Check]
+    if: always()    
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Collect Workflow Logs
         run: |
           echo "===== CIS SUMMARY REPORT =====" > cis-summary.txt
           echo "" >> cis-summary.txt
-          echo "[*] Collecting PASS/FAIL/WARN from workflow logs..." >> cis-summary.txt
+
+          echo "[*] Collecting PASS/FAIL/WARN from job outputs..." >> cis-summary.txt
           echo "" >> cis-summary.txt
 
-          # Thu toàn bộ output từ run steps
+          # Thu log toàn repo sau khi pipeline chạy
           grep -RinE "PASS|FAIL|WARN|\[OK\]|\[WARN\]|\[FAIL\]" . >> cis-summary.txt || true
 
           echo "" >> cis-summary.txt
