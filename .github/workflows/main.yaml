@@ -24,9 +24,9 @@ env:
   ECR_REPOSITORY: ${{secrets.ECR_REPOSITORY}}
 
 jobs:
-  Cis_Cluster_Check:
+  Node_Cis_Check:
     runs-on: ubuntu-latest
-    needs: Node_Cis_Check
+    needs: Cis_Cluster_Check
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -107,9 +107,9 @@ jobs:
 
       
 
-  Node_Cis_Check:
+  Cis_Cluster_Check:
     runs-on: ubuntu-latest
-    name: "CIS Worker Node Check"
+    name: "CIS Cluster Check"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -193,34 +193,4 @@ jobs:
             echo "---------------------------"
           done
 
-  # ===========================
-      #  FINAL SUMMARY FILE
-      # ===========================
-  Summary_Report:
-    runs-on: ubuntu-latest
-    needs: [Node_Cis_Check, Cis_Cluster_Check]
-    if: always()    
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Collect Workflow Logs
-        run: |
-          echo "===== CIS SUMMARY REPORT =====" > cis-summary.txt
-          echo "" >> cis-summary.txt
-
-          echo "[*] Collecting PASS/FAIL/WARN from job outputs..." >> cis-summary.txt
-          echo "" >> cis-summary.txt
-
-          # Thu log toàn repo sau khi pipeline chạy
-          grep -RinE "PASS|FAIL|WARN|\[OK\]|\[WARN\]|\[FAIL\]" . >> cis-summary.txt || true
-
-          echo "" >> cis-summary.txt
-          echo "===== END OF REPORT =====" >> cis-summary.txt
-
-      - name: Upload CIS Summary Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cis-summary
-          path: cis-summary.txt
+  

@@ -1,0 +1,42 @@
+1. Check whether audit policy is enabled:
+
+kubectl get --raw /api/v1/nodes/${NODE_NAME}/proxy/configz | jq '.kubeletConfig.auditPolicy'
+
+2. Check whether audit logs is collected:
+
+kubectl get --raw /api/v1/nodes/${NODE_NAME}/proxy/stats/summary | jq '.auditLogs'
+
+3.Remediation:
+
+3.1 Apply this yaml file (audit-policy.yaml):
+
+apiVersion: audit.k8s.io/v1
+kind: Policy
+rules:
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["pods"]
+
+3.2 Create Configmap for forward audit logs:
+kubectl create configmap cluster-audit-policy --from-file=audit-policy.yaml -n kube-system
+
+3.3 Create Pod forwarding log:
+apiVersion: v1
+kind: Pod
+metadata:
+  name: audit-logging
+  namespace: kube-system
+spec:
+  containers:
+    - name: audit-log-forwarder
+      image: my-log-forwarder-image
+      volumeMounts:
+        - mountPath: /etc/kubernetes/audit
+          name: audit-config
+  volumes:
+    - name: audit-config
+      configMap:
+        name: cluster-audit-policy
+
+
